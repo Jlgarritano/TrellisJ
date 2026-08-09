@@ -1,0 +1,1369 @@
+<title>Trellis.J — Box Truss Designer</title>
+<style>
+:root{
+  --paper:#EDF1F4;
+  --paper-alt:#E1E8ED;
+  --ink:#1B2733;
+  --ink-soft:#4C5A67;
+  --ink-faint:#8592A0;
+  --accent:#D9622B;
+  --accent-soft:#F0A876;
+  --border:#1B2733;
+  --studio-1:#DDE3E8;
+  --studio-2:#F4F6F8;
+  --panel-bg: rgba(255,255,255,0.82);
+  --panel-border: rgba(27,39,51,0.14);
+  --danger:#B23A2E;
+  --danger-bg: rgba(178,58,46,0.10);
+  --ok:#2E7D4F;
+  --font-display: "Segoe UI Semibold","Segoe UI",Arial,sans-serif;
+  --font-body: "Segoe UI",Arial,sans-serif;
+  --font-mono: "Cascadia Mono","Consolas","SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --paper:#0E1319; --paper-alt:#141B23; --ink:#DCE6EE; --ink-soft:#9FB0BE; --ink-faint:#5E6C79;
+    --accent:#FF8C4B; --accent-soft:#B5501C; --border:#DCE6EE;
+    --studio-1:#0A0E13; --studio-2:#1B242E;
+    --panel-bg: rgba(20,27,35,0.82); --panel-border: rgba(220,230,238,0.14);
+    --danger:#FF7A68; --danger-bg: rgba(255,122,104,0.12);
+    --ok:#5FD68C;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0E1319; --paper-alt:#141B23; --ink:#DCE6EE; --ink-soft:#9FB0BE; --ink-faint:#5E6C79;
+  --accent:#FF8C4B; --accent-soft:#B5501C; --border:#DCE6EE;
+  --studio-1:#0A0E13; --studio-2:#1B242E;
+  --panel-bg: rgba(20,27,35,0.82); --panel-border: rgba(220,230,238,0.14);
+  --danger:#FF7A68; --danger-bg: rgba(255,122,104,0.12);
+  --ok:#5FD68C;
+}
+:root[data-theme="light"]{
+  --paper:#EDF1F4; --paper-alt:#E1E8ED; --ink:#1B2733; --ink-soft:#4C5A67; --ink-faint:#8592A0;
+  --accent:#D9622B; --accent-soft:#F0A876; --border:#1B2733;
+  --studio-1:#DDE3E8; --studio-2:#F4F6F8;
+  --panel-bg: rgba(255,255,255,0.82); --panel-border: rgba(27,39,51,0.14);
+  --danger:#B23A2E; --danger-bg: rgba(178,58,46,0.10);
+  --ok:#2E7D4F;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%}
+body{
+  font-family:var(--font-body);
+  color:var(--ink);
+  background:var(--paper);
+  overflow:hidden;
+}
+
+.stage{ position:relative; width:100vw; height:100vh; display:flex; flex-direction:column; }
+
+header{
+  display:flex; align-items:baseline; justify-content:space-between; gap:12px;
+  padding:12px 18px; flex-wrap:wrap; z-index:5; border-bottom:1px solid var(--panel-border);
+}
+header h1{ font-family:var(--font-display); font-weight:700; font-size:15px; letter-spacing:.04em; text-transform:uppercase; margin:0; }
+header .sub{ font-family:var(--font-mono); font-size:11px; color:var(--ink-soft); }
+
+.main{ flex:1; display:flex; min-height:0; }
+
+.sidebar{
+  position:relative;
+  width:300px; flex:0 0 auto; overflow-y:auto;
+  border-right:1px solid var(--panel-border);
+  padding:14px; display:flex; flex-direction:column; gap:14px;
+  background:var(--paper-alt);
+}
+
+/* Seta flutuante que aparece só quando o painel tem conteúdo escondido
+   por baixo (rolagem interna) — some sozinha ao chegar no final. Clicável:
+   rola o painel. Ver updateScrollHint() no script. */
+.scrollHint{
+  position:absolute; left:50%; bottom:10px; transform:translateX(-50%) translateY(6px);
+  display:flex; align-items:center; justify-content:center;
+  width:30px; height:30px; border-radius:50%;
+  background:var(--accent); color:#fff; font-size:15px; line-height:1;
+  box-shadow:0 3px 10px rgba(0,0,0,.35);
+  border:none; cursor:pointer;
+  opacity:0; pointer-events:none;
+  transition:opacity .2s ease, transform .2s ease;
+  z-index:2;
+}
+.scrollHint.visible{ opacity:1; pointer-events:auto; transform:translateX(-50%) translateY(0); }
+@media (prefers-reduced-motion: no-preference){
+  .scrollHint.visible{ animation:scrollHintBounce 1.4s ease-in-out infinite; }
+}
+@keyframes scrollHintBounce{
+  0%,100%{ transform:translateX(-50%) translateY(0); }
+  50%{ transform:translateX(-50%) translateY(5px); }
+}
+.field{ display:flex; flex-direction:column; gap:4px; }
+.field label{ font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft); font-family:var(--font-display); }
+.field input[type="number"], .field input[type="text"]{
+  font-family:var(--font-mono); font-size:13px; padding:7px 9px;
+  border:1px solid var(--panel-border); border-radius:2px;
+  background:var(--paper); color:var(--ink);
+}
+.field input:focus{ outline:2px solid var(--accent-soft); outline-offset:-1px; }
+
+.seg{ display:flex !important; width:100%; border:1px solid var(--panel-border); border-radius:2px; overflow:hidden; min-height:34px; }
+.seg button{
+  flex:1 1 0 !important; font-family:var(--font-display) !important; font-size:11px !important; letter-spacing:.03em; text-transform:uppercase;
+  padding:8px 4px !important; margin:0 !important; border:none !important; background:var(--paper) !important; color:var(--ink-soft) !important;
+  cursor:pointer; min-height:34px; line-height:1.4 !important; box-sizing:border-box; appearance:none; -webkit-appearance:none;
+}
+.seg button.active{ background:var(--accent) !important; color:#fff !important; }
+
+.btn{
+  display:block !important; font-family:var(--font-display) !important; font-size:12px !important; letter-spacing:.04em; text-transform:uppercase;
+  padding:10px 12px !important; border:1px solid var(--border) !important; border-radius:2px; cursor:pointer;
+  background:var(--ink) !important; color:var(--paper) !important; text-align:center; box-sizing:border-box; appearance:none; -webkit-appearance:none;
+}
+.btn:hover{ opacity:.88; }
+.btn.secondary{ background:transparent; color:var(--ink); border:1px solid var(--panel-border); }
+.btn.secondary:hover{ background:var(--paper); }
+.btnrow{ display:flex; gap:6px; }
+.btnrow .btn{ flex:1; }
+
+hr.sep{ border:none; border-top:1px solid var(--panel-border); margin:2px 0; }
+
+.section-title{ font-family:var(--font-display); font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-faint); }
+
+table.bom{ width:100%; border-collapse:collapse; font-family:var(--font-mono); font-size:12.5px; }
+table.bom td{ padding:4px 2px; border-bottom:1px solid var(--panel-border); }
+table.bom td.qty{ text-align:right; font-weight:600; }
+table.bom .sw{ display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:7px; vertical-align:middle; }
+table.bom tr.total td{ border-bottom:none; border-top:1px solid var(--ink); padding-top:6px; font-weight:700; }
+
+.warnbox{ background:var(--danger-bg); border:1px solid var(--danger); border-radius:2px; padding:8px 10px; font-size:11.5px; color:var(--danger); line-height:1.5; }
+.warnbox b{ display:block; margin-bottom:3px; font-family:var(--font-display); text-transform:uppercase; letter-spacing:.03em; font-size:10.5px; }
+
+.okbox{ font-size:11.5px; color:var(--ok); font-family:var(--font-mono); }
+
+.canvas-wrap{ position:relative; flex:1; min-height:0; }
+canvas{ display:block; width:100%; height:100%; touch-action:none; cursor:grab; }
+canvas.dragging{ cursor:grabbing; }
+
+.hint{
+  position:absolute; top:14px; left:50%; transform:translateX(-50%);
+  font-family:var(--font-mono); font-size:10.5px; letter-spacing:.02em; color:var(--ink-soft);
+  background:var(--panel-bg); border:1px solid var(--panel-border); backdrop-filter:blur(6px);
+  padding:5px 12px; pointer-events:none; transition:opacity .6s ease;
+}
+.hint.hidden{ opacity:0; }
+
+.legend{
+  position:absolute; top:14px; right:14px; display:flex; flex-direction:column; gap:5px;
+  background:var(--panel-bg); border:1px solid var(--panel-border); backdrop-filter:blur(6px);
+  padding:9px 11px; font-size:10.5px; max-width:150px;
+}
+.legend .row{ display:flex; align-items:center; gap:6px; color:var(--ink-soft); }
+.legend .sw{ width:11px; height:11px; flex:0 0 auto; border-radius:2px; }
+
+/* Existem DUAS cópias dos controles de vista (.dock-desktop e .dock-mobile,
+   ambas com classe .dock e os mesmos botões/atributos), e só uma fica
+   visível por vez via display:none — nunca via JS movendo o elemento de
+   lugar. Isso evita depender de matchMedia/timing/DOM-move pra visibilidade:
+   é resolvido só com CSS, o jeito mais simples de garantir que sempre
+   funcione. O JS (mais abaixo) liga eventos nos botões pelas CLASSES
+   (.rotBtn, .zoomInBtn, etc.), então funciona igual nas duas cópias. */
+.dock{
+  display:flex; align-items:center; gap:6px; flex-wrap:wrap; justify-content:center;
+  background:var(--panel-bg); border:1px solid var(--panel-border); padding:8px;
+}
+.dock-desktop{
+  position:absolute; left:50%; bottom:16px; transform:translateX(-50%);
+  backdrop-filter:blur(10px); max-width:92vw;
+}
+.dock-mobile, .dock-mobile-title{ display:none; }
+.dock button{
+  font-family:var(--font-display); font-size:11px; letter-spacing:.05em; text-transform:uppercase;
+  color:var(--ink-soft); background:transparent; border:1px solid transparent; padding:8px 12px; cursor:pointer;
+  transition:background .15s ease, color .15s ease, border-color .15s ease;
+}
+.dock button:hover{ background:var(--paper-alt); color:var(--ink); }
+.dock button.active{ color:var(--accent); border-color:var(--accent-soft); }
+.dock .sep{ width:1px; align-self:stretch; background:var(--panel-border); margin:2px 4px; }
+.dock .zoomgrp{ display:flex; align-items:center; gap:2px; }
+.dock .zoomgrp button{ width:30px; padding:8px 0; font-size:14px; }
+
+@media (max-width:760px){
+  .main{ flex-direction:column; }
+  .sidebar{ width:100%; max-height:48vh; border-right:none; border-bottom:1px solid var(--panel-border); }
+  .legend{ display:none; }
+  header .sub{ display:none; }
+  header h1{ font-size:13px; }
+  .field input[type="number"], .field input[type="text"]{ font-size:16px; padding:9px 10px; }
+  .seg button{ padding:10px 4px; }
+  .btn{ padding:12px; }
+
+  /* Em telas estreitas o dock some de cima do desenho: a cópia flutuante
+     (desktop) é escondida e a cópia fixa dentro do painel (mobile) aparece
+     no lugar — o canvas fica inteiro livre pro desenho. */
+  .dock-desktop{ display:none; }
+  .dock-mobile-title{ display:block; }
+  .dock-mobile{
+    display:flex; width:100%; justify-content:flex-start;
+    border-radius:2px;
+  }
+  .dock-mobile button{ padding:9px 10px; font-size:10.5px; flex:1 1 auto; }
+  .dock-mobile .zoomgrp button{ width:32px; flex:0 0 auto; }
+}
+
+/* Trava de acesso — tela de fase de testes, some depois do código certo
+   (ver script logo abaixo do HTML do gate). Fica por cima de tudo. */
+.gate{
+  position:fixed; inset:0; z-index:1000;
+  display:flex; align-items:center; justify-content:center; padding:20px;
+  background:var(--paper);
+}
+.gate.hidden{ display:none; }
+.gate-box{
+  width:100%; max-width:320px; padding:26px;
+  border:1px solid var(--panel-border); border-radius:4px;
+  background:var(--paper-alt);
+  display:flex; flex-direction:column; gap:12px;
+}
+.gate-box .eyebrow{ font-family:var(--font-mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-faint); }
+.gate-box h2{ font-family:var(--font-display); font-size:16px; margin:0; text-transform:uppercase; letter-spacing:.03em; color:var(--ink); }
+.gate-box p{ font-size:12px; color:var(--ink-soft); margin:0; line-height:1.5; }
+.gate-box input{
+  font-family:var(--font-mono); font-size:16px; padding:11px 12px;
+  border:1px solid var(--panel-border); border-radius:2px; background:var(--paper); color:var(--ink);
+  letter-spacing:.05em;
+}
+.gate-box input:focus{ outline:2px solid var(--accent-soft); outline-offset:-1px; }
+.gate-error{ font-size:11.5px; color:var(--danger); display:none; }
+.gate-error.visible{ display:block; }
+
+/* Card de convite pro feedback (nome + whatsapp) — discreto, não bloqueia
+   o uso, aparece uma vez por navegador depois de destravar o acesso. */
+.feedbackCard{
+  position:fixed; right:16px; bottom:16px; z-index:500;
+  width:280px; max-width:calc(100vw - 32px);
+  padding:18px; border-radius:4px;
+  border:1px solid var(--panel-border); background:var(--paper-alt);
+  box-shadow:0 8px 24px rgba(0,0,0,.35);
+  display:none; flex-direction:column; gap:10px;
+}
+.feedbackCard.visible{ display:flex; }
+.feedbackCard p{ font-size:12px; color:var(--ink-soft); margin:0; line-height:1.5; }
+.feedbackCard input{
+  font-family:var(--font-mono); font-size:13px; padding:9px 10px;
+  border:1px solid var(--panel-border); border-radius:2px; background:var(--paper); color:var(--ink);
+}
+.feedbackClose{
+  position:absolute; top:8px; right:8px; width:22px; height:22px;
+  border:none; background:transparent; color:var(--ink-faint); font-size:16px; line-height:1; cursor:pointer;
+}
+.feedbackNote{ font-size:10px; color:var(--ink-faint); }
+.feedbackThanks{ display:none; text-align:center; }
+.feedbackThanks.visible{ display:flex; }
+.feedbackThanks p{ text-align:center; }
+
+/* Painel de administrador — rota escondida (#admin), não aparece no uso normal. */
+.adminPanel{
+  position:fixed; inset:0; z-index:900; background:var(--paper);
+  display:none; align-items:flex-start; justify-content:center;
+  overflow-y:auto; padding:24px;
+}
+.adminPanel-inner{ width:100%; max-width:900px; display:flex; flex-direction:column; gap:18px; }
+.adminPanel-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+.adminPanel-head h2{ font-family:var(--font-display); font-size:18px; text-transform:uppercase; letter-spacing:.03em; margin:0; }
+.adminPanel-head div{ display:flex; gap:8px; flex-wrap:wrap; }
+.adminPanel .btn{ padding:8px 12px; font-size:11px; }
+.admin-section h3{ font-family:var(--font-display); font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft); margin:0 0 8px; }
+.admin-hint{ font-size:11px; color:var(--ink-faint); margin:0 0 8px; }
+.admin-table{ width:100%; border-collapse:collapse; font-family:var(--font-mono); font-size:12px; }
+.admin-table th{ text-align:left; color:var(--ink-faint); font-weight:normal; padding:6px 8px; border-bottom:1px solid var(--panel-border); text-transform:uppercase; font-size:10px; letter-spacing:.03em; }
+.admin-table td{ padding:6px 8px; border-bottom:1px solid var(--panel-border); }
+
+/* Link discreto pro painel de administrador — sem precisar editar a URL. */
+.adminLink{
+  align-self:flex-start; margin-top:2px;
+  border:none; background:transparent; color:var(--ink-faint);
+  font-family:var(--font-mono); font-size:10px; letter-spacing:.03em;
+  cursor:pointer; padding:2px 0; opacity:.6;
+}
+.adminLink:hover{ opacity:1; color:var(--ink-soft); }
+</style>
+
+<div class="gate" id="gate">
+  <div class="gate-box">
+    <div class="eyebrow">Trellis.J — versão de testes</div>
+    <h2>Acesso restrito</h2>
+    <p>Essa ferramenta ainda está em fase de validação. Digite o código de acesso que você recebeu de quem te convidou.</p>
+    <input type="password" id="gateInput" placeholder="Código de acesso" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <button type="button" class="btn" id="gateBtn">Entrar</button>
+    <div class="gate-error" id="gateError"></div>
+  </div>
+</div>
+
+<div class="feedbackCard" id="feedbackCard">
+  <button type="button" class="feedbackClose" id="feedbackClose" aria-label="Fechar">×</button>
+  <div class="section-title">Ajuda a melhorar a Trellis.J</div>
+  <p>Valeu por testar! Se quiser, deixa seu nome e WhatsApp que a gente entra em contato pra ouvir sugestões — totalmente opcional.</p>
+  <input type="text" id="feedbackName" placeholder="Nome" autocomplete="off">
+  <input type="text" id="feedbackWhats" placeholder="WhatsApp" autocomplete="off">
+  <button type="button" class="btn" id="feedbackSend">Enviar</button>
+  <div class="feedbackNote">Usamos só pra falar com você sobre a Trellis.J.</div>
+</div>
+<div class="feedbackCard feedbackThanks" id="feedbackThanks">
+  <div class="section-title">Valeu! 🙌</div>
+  <p>Recebemos seu contato — obrigado por ajudar a melhorar a Trellis.J.</p>
+</div>
+
+<div class="gate" id="adminGate" style="display:none;">
+  <div class="gate-box">
+    <div class="eyebrow">Trellis.J — administrador</div>
+    <h2>Área restrita</h2>
+    <input type="password" id="adminInput" placeholder="Chave de administrador" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <button type="button" class="btn" id="adminBtn">Entrar</button>
+    <div class="gate-error" id="adminError"></div>
+  </div>
+</div>
+<div class="adminPanel" id="adminPanel" style="display:none;">
+  <div class="adminPanel-inner">
+    <div class="adminPanel-head">
+      <h2>Trellis.J — administrador</h2>
+      <div>
+        <button type="button" class="btn secondary" id="adminRefresh">Atualizar</button>
+        <button type="button" class="btn secondary" id="adminExport">Exportar feedback (CSV)</button>
+        <a class="btn secondary" href="#" id="adminClose">Voltar ao app</a>
+      </div>
+    </div>
+    <div id="adminBody">Carregando…</div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // Depois de publicar o Web App do Google Apps Script (ver Trellis_Backend/Code.gs),
+  // cole a URL dele aqui (termina em /exec).
+  var API_URL = 'https://script.google.com/macros/s/AKfycbw1_UHVjpRYGIGT9lLEqkqDaRasdBduPmQLnNYEElsS--xlw_FT15qC7Flu7GVla-g8Uw/exec';
+
+  function apiCall(payload){
+    return fetch(API_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain;charset=utf-8'}, // evita preflight CORS no Apps Script
+      body: JSON.stringify(payload)
+    }).then(function(r){ return r.json(); });
+  }
+
+  // Plano B pro código de acesso: alguns lugares onde essa página pode
+  // rodar (o Artifact do Claude, por exemplo) bloqueiam por segurança
+  // qualquer chamada de rede pra fora do próprio domínio — o fetch()
+  // acima nunca chega a sair. Nesse caso, cai pra essa checagem local
+  // (mesmo código de sempre, "GOPRINT-BETA") em vez de travar o acesso.
+  // Só é usado quando o backend está inalcançável, nunca no lugar dele.
+  var FALLBACK_CODE_HASH = '9f381054686ba5ce6faecb0eed57fce047973c9bc8254deaab7a15914ba00c4f';
+  function sha256Hex(text){
+    var enc = new TextEncoder().encode(text);
+    return crypto.subtle.digest('SHA-256', enc).then(function(buf){
+      return Array.from(new Uint8Array(buf)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+    });
+  }
+
+  // ==========================================================
+  // Gate de acesso (código de convite)
+  // ==========================================================
+  var GATE_STORAGE_KEY = 'trellisj_access_code';
+  var gate = document.getElementById('gate');
+  var gateInput = document.getElementById('gateInput');
+  var gateBtn = document.getElementById('gateBtn');
+  var gateErr = document.getElementById('gateError');
+
+  function unlockGate(){ gate.classList.add('hidden'); scheduleFeedbackPrompt(); }
+
+  var storedCode = localStorage.getItem(GATE_STORAGE_KEY);
+  if(storedCode){
+    unlockGate();
+  } else {
+    gateInput.focus();
+  }
+
+  function tryCode(){
+    var val = gateInput.value.trim();
+    if(!val) return;
+    gateBtn.disabled = true; gateBtn.textContent = 'Verificando…';
+    apiCall({action:'checkCode', code: val}).then(function(data){
+      gateBtn.disabled = false; gateBtn.textContent = 'Entrar';
+      if(data.valid){
+        localStorage.setItem(GATE_STORAGE_KEY, val);
+        gateErr.classList.remove('visible');
+        unlockGate();
+      } else {
+        gateErr.textContent = 'Código incorreto — confira com quem te enviou o link.';
+        gateErr.classList.add('visible');
+        gateInput.select();
+      }
+    }).catch(function(){
+      // Backend inalcançável (provavelmente bloqueio de rede do ambiente,
+      // não o código errado) — tenta o plano B local antes de desistir.
+      sha256Hex(val.toUpperCase()).then(function(hash){
+        gateBtn.disabled = false; gateBtn.textContent = 'Entrar';
+        if(hash === FALLBACK_CODE_HASH){
+          localStorage.setItem(GATE_STORAGE_KEY, val);
+          gateErr.classList.remove('visible');
+          unlockGate();
+        } else {
+          gateErr.textContent = 'Código incorreto — confira com quem te enviou o link.';
+          gateErr.classList.add('visible');
+          gateInput.select();
+        }
+      });
+    });
+  }
+
+  gateBtn.addEventListener('pointerdown', tryCode);
+  gateBtn.addEventListener('click', tryCode);
+  gateInput.addEventListener('keydown', function(e){ if(e.key==='Enter') tryCode(); });
+
+  // ==========================================================
+  // Convite opcional de feedback (nome + whatsapp)
+  // ==========================================================
+  var FEEDBACK_SHOWN_KEY = 'trellisj_feedback_shown';
+  var feedbackCard = document.getElementById('feedbackCard');
+  var feedbackThanks = document.getElementById('feedbackThanks');
+  var feedbackName = document.getElementById('feedbackName');
+  var feedbackWhats = document.getElementById('feedbackWhats');
+  var feedbackSend = document.getElementById('feedbackSend');
+  var feedbackClose = document.getElementById('feedbackClose');
+
+  function scheduleFeedbackPrompt(){
+    if(localStorage.getItem(FEEDBACK_SHOWN_KEY)) return;
+    setTimeout(function(){
+      feedbackCard.classList.add('visible');
+    }, 6000);
+  }
+
+  function dismissFeedback(){
+    feedbackCard.classList.remove('visible');
+    localStorage.setItem(FEEDBACK_SHOWN_KEY, '1');
+  }
+
+  feedbackClose.addEventListener('click', dismissFeedback);
+
+  feedbackSend.addEventListener('click', function(){
+    var name = feedbackName.value.trim();
+    var whats = feedbackWhats.value.trim();
+    if(!whats){ feedbackWhats.focus(); return; }
+    feedbackSend.disabled = true; feedbackSend.textContent = 'Enviando…';
+    apiCall({action:'feedback', name:name, whatsapp:whats}).then(function(){
+      dismissFeedback();
+      feedbackThanks.classList.add('visible');
+      setTimeout(function(){ feedbackThanks.classList.remove('visible'); }, 4000);
+    }).catch(function(){
+      feedbackSend.disabled = false; feedbackSend.textContent = 'Enviar';
+    });
+  });
+
+  // ==========================================================
+  // Painel de administrador — acessível em ...box_truss_app.html#admin
+  // ==========================================================
+  var adminGate = document.getElementById('adminGate');
+  var adminInput = document.getElementById('adminInput');
+  var adminBtn = document.getElementById('adminBtn');
+  var adminErr = document.getElementById('adminError');
+  var adminPanel = document.getElementById('adminPanel');
+  var adminBody = document.getElementById('adminBody');
+  var ADMIN_KEY_STORAGE = 'trellisj_admin_key';
+
+  function escapeHtml(s){
+    return String(s==null?'':s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+
+  function renderAdmin(data){
+    var html = '';
+    html += '<div class="admin-section"><h3>Códigos de acesso (' + data.codes.length + ')</h3>';
+    html += '<p class="admin-hint">Editados direto na planilha Google, na aba "Codes" — não dá pra editar por aqui.</p>';
+    html += '<table class="admin-table"><tr><th>Código</th><th>Status</th><th>Observação</th></tr>';
+    data.codes.forEach(function(c){
+      html += '<tr><td>'+escapeHtml(c.code)+'</td><td>'+escapeHtml(c.status)+'</td><td>'+escapeHtml(c.note)+'</td></tr>';
+    });
+    html += '</table></div>';
+
+    html += '<div class="admin-section"><h3>Feedback recebido (' + data.feedback.length + ')</h3>';
+    html += '<table class="admin-table"><tr><th>Data</th><th>Nome</th><th>WhatsApp</th></tr>';
+    data.feedback.forEach(function(f){
+      html += '<tr><td>'+escapeHtml(f.date)+'</td><td>'+escapeHtml(f.name)+'</td><td>'+escapeHtml(f.whatsapp)+'</td></tr>';
+    });
+    html += '</table></div>';
+
+    html += '<div class="admin-section"><h3>Últimos acessos (' + data.accessLog.length + ')</h3>';
+    html += '<table class="admin-table"><tr><th>Data</th><th>Código usado</th></tr>';
+    data.accessLog.slice(0, 100).forEach(function(a){
+      html += '<tr><td>'+escapeHtml(a.date)+'</td><td>'+escapeHtml(a.code)+'</td></tr>';
+    });
+    html += '</table></div>';
+
+    adminBody.innerHTML = html;
+    window._trellisAdminData = data;
+  }
+
+  function loadAdminData(key){
+    var wasShowingPanel = adminPanel.style.display === 'flex';
+    if(wasShowingPanel){ adminBody.textContent = 'Atualizando…'; }
+    return apiCall({action:'adminData', adminKey:key}).then(function(data){
+      if(!data.ok){
+        adminGate.style.display = 'flex';
+        adminPanel.style.display = 'none';
+        adminErr.textContent = 'Chave incorreta.';
+        adminErr.classList.add('visible');
+        localStorage.removeItem(ADMIN_KEY_STORAGE);
+        return;
+      }
+      localStorage.setItem(ADMIN_KEY_STORAGE, key);
+      adminGate.style.display = 'none';
+      adminPanel.style.display = 'flex';
+      adminErr.classList.remove('visible');
+      renderAdmin(data);
+    }).catch(function(){
+      if(wasShowingPanel){
+        adminBody.textContent = 'Não consegui atualizar agora — confira sua conexão e tente de novo.';
+      } else {
+        adminErr.textContent = 'Não consegui verificar agora — confira sua conexão e tente de novo.';
+        adminErr.classList.add('visible');
+      }
+    });
+  }
+
+  function tryAdminCode(){
+    var val = adminInput.value.trim();
+    if(!val) return;
+    adminBtn.disabled = true; adminBtn.textContent = 'Verificando…';
+    loadAdminData(val).then(function(){
+      adminBtn.disabled = false; adminBtn.textContent = 'Entrar';
+    });
+  }
+
+  adminBtn.addEventListener('pointerdown', tryAdminCode);
+  adminBtn.addEventListener('click', tryAdminCode);
+  adminInput.addEventListener('keydown', function(e){ if(e.key==='Enter') tryAdminCode(); });
+
+  document.getElementById('adminRefresh').addEventListener('click', function(){
+    var key = localStorage.getItem(ADMIN_KEY_STORAGE);
+    if(key) loadAdminData(key);
+  });
+
+  document.getElementById('adminExport').addEventListener('click', function(){
+    var data = window._trellisAdminData;
+    if(!data) return;
+    var csv = 'Data,Nome,WhatsApp\n';
+    data.feedback.forEach(function(f){
+      csv += '"'+String(f.date).replace(/"/g,'""')+'","'+String(f.name).replace(/"/g,'""')+'","'+String(f.whatsapp).replace(/"/g,'""')+'"\n';
+    });
+    var blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = 'trellisj_feedback.csv';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+
+  document.getElementById('adminClose').addEventListener('click', function(e){
+    e.preventDefault();
+    history.replaceState(null, '', location.pathname + location.search);
+    adminGate.style.display = 'none';
+    adminPanel.style.display = 'none';
+  });
+
+  function openAdmin(){
+    var savedKey = localStorage.getItem(ADMIN_KEY_STORAGE);
+    adminGate.style.display = 'flex';
+    if(savedKey){
+      adminInput.value = savedKey;
+      loadAdminData(savedKey);
+    } else {
+      adminInput.focus();
+    }
+  }
+
+  // Delegado no document (não no botão direto): o botão #adminLink vive
+  // dentro de .stage, que só é parseado DEPOIS deste <script> — buscar o
+  // elemento aqui embaixo retornaria null. Delegação funciona não importa
+  // a ordem, porque só resolve o alvo no momento do clique.
+  document.addEventListener('click', function(e){
+    if(e.target && e.target.closest && e.target.closest('#adminLink')) openAdmin();
+  });
+
+  // Também funciona abrindo o link com #admin no final, se preferir.
+  function checkAdminRoute(){
+    if(location.hash === '#admin') openAdmin();
+  }
+  window.addEventListener('hashchange', checkAdminRoute);
+  checkAdminRoute();
+})();
+</script>
+
+<div class="stage notranslate" translate="no">
+  <header>
+    <div><h1>Trellis.J</h1></div>
+    <div class="sub" id="headerSub">150 × 150 × 300 cm · arraste para girar</div>
+  </header>
+
+  <div class="main">
+    <div class="sidebar">
+      <div class="section-title">Tipo de estrutura</div>
+      <div class="seg" id="typeSeg">
+        <button data-type="TORRE" class="active">Torre / Caixa</button>
+        <button data-type="BACKDROP">Backdrop</button>
+      </div>
+
+      <div class="field">
+        <label>Largura — cm</label>
+        <input type="number" id="inW" value="150" min="30" step="5">
+      </div>
+      <div class="field" id="depthField">
+        <label>Profundidade — cm</label>
+        <input type="number" id="inD" value="150" min="30" step="5">
+      </div>
+      <div class="field">
+        <label>Altura — cm</label>
+        <input type="number" id="inH" value="300" min="30" step="5">
+      </div>
+
+      <button class="btn" id="btnGerar">Gerar Estrutura</button>
+
+      <div class="section-title dock-mobile-title">Vista</div>
+      <div class="dock dock-mobile">
+        <button data-view="front">Frontal</button>
+        <button data-view="side">Lateral</button>
+        <button data-view="top">Superior</button>
+        <button data-view="iso" class="active">Isométrico</button>
+        <div class="sep"></div>
+        <button class="rotBtn">Girar ▶</button>
+        <div class="sep"></div>
+        <div class="zoomgrp">
+          <button class="zoomOutBtn">–</button>
+          <button class="zoomInBtn">+</button>
+        </div>
+      </div>
+
+      <hr class="sep">
+      <div class="section-title">Quantitativo</div>
+      <table class="bom" id="bomTable"></table>
+      <div id="warnArea"></div>
+
+      <div class="btnrow">
+        <button class="btn secondary" id="btnCsv">Exportar CSV</button>
+        <button class="btn secondary" id="btnJson">Enviar p/ Blender (JSON)</button>
+      </div>
+      <div style="font-size:10.5px;color:var(--ink-faint);line-height:1.5;">
+        O JSON baixado pode ser importado direto no add-on do Blender (painel Box Truss → "Importar do App Web").
+      </div>
+
+      <button type="button" class="adminLink" id="adminLink" title="Administrador">⚙ admin</button>
+
+      <button type="button" class="scrollHint" id="scrollHint" title="Rolar para ver mais" aria-label="Rolar para ver mais">▾</button>
+    </div>
+
+    <div class="canvas-wrap">
+      <canvas id="c"></canvas>
+      <div class="hint" id="hint">arraste para girar · scroll para zoom</div>
+      <div class="legend" id="legend"></div>
+    </div>
+  </div>
+
+  <div class="dock dock-desktop">
+    <button data-view="front">Frontal</button>
+    <button data-view="side">Lateral</button>
+    <button data-view="top">Superior</button>
+    <button data-view="iso" class="active">Isométrico</button>
+    <div class="sep"></div>
+    <button class="rotBtn">Girar ▶</button>
+    <div class="sep"></div>
+    <div class="zoomgrp">
+      <button class="zoomOutBtn">–</button>
+      <button class="zoomInBtn">+</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ============================================================
+  // Núcleo de cálculo — mesmo algoritmo de truss_core.py /
+  // box_truss_designer.py (porte para JS).
+  //
+  // Convenção: cada vértice leva um cubo de ligação de 15cm.
+  // Vão livre de uma aresta = comprimento total do eixo - 2*15cm.
+  // ============================================================
+
+  const PIECES = [300,270,250,200,170,150,100,70,50,20]; // cm
+  const CUBE = 15; // cm
+  const ROD = 1.8; // cm, espessura visual dos perfis nos desenhos
+
+  function decomposeSpan(targetCm, pieces, searchMargin){
+    pieces = pieces || PIECES;
+    if(targetCm <= 0) return {target:targetCm, exact:true, pieces:{}, total:0, diff:0};
+    if(searchMargin == null) searchMargin = Math.max.apply(null, pieces);
+    const upper = Math.floor(targetCm) + searchMargin;
+
+    const dp = new Array(upper+1).fill(null);
+    const choice = new Array(upper+1).fill(null);
+    dp[0] = 0;
+    for(let s=1; s<=upper; s++){
+      let best=null, bestPiece=null;
+      for(const p of pieces){
+        if(p<=s && dp[s-p]!==null){
+          const cand = dp[s-p]+1;
+          if(best===null || cand<best){ best=cand; bestPiece=p; }
+        }
+      }
+      dp[s]=best; choice[s]=bestPiece;
+    }
+
+    function buildCombo(s){
+      const combo = {};
+      while(s>0 && choice[s]!==null){
+        const p = choice[s];
+        combo[p] = (combo[p]||0)+1;
+        s -= p;
+      }
+      return combo;
+    }
+
+    const targetI = Math.round(targetCm);
+    if(targetI<=upper && dp[targetI]!==null){
+      return {target:targetCm, exact:true, pieces:buildCombo(targetI), total:targetI, diff:0};
+    }
+
+    let below=null;
+    for(let s=targetI; s>=0; s--){ if(dp[s]!==null){ below=s; break; } }
+    let above=null;
+    for(let s=targetI; s<=upper; s++){ if(dp[s]!==null){ above=s; break; } }
+
+    let chosen;
+    if(below!==null && (above===null || (targetI-below)<=(above-targetI))) chosen=below;
+    else chosen=above;
+
+    if(chosen===null){
+      return {target:targetCm, exact:false, pieces:{}, total:0, diff:-targetCm,
+        erro:"vão menor que a menor peça padrão ("+Math.min.apply(null,pieces)+"cm)"};
+    }
+    const combo = buildCombo(chosen);
+    return {target:targetCm, exact:false, pieces:combo, total:chosen, diff:chosen-targetCm};
+  }
+
+  const AXIS_LABELS = {width:"Largura", depth:"Profundidade", height:"Altura"};
+  const SUPPORT_SPAN = 500; // cm — acima disso, insere coluna(s) de sustentação na largura
+
+  function warnFor(label, r, warnings){
+    if(!r.exact){
+      if(r.erro){
+        warnings.push(label+": vão de "+r.target.toFixed(1)+"cm "+r.erro+" — não foi possível montar.");
+      } else {
+        const diff=r.diff, sinal = diff>0?"sobra":"falta";
+        warnings.push(label+": vão de "+r.target.toFixed(1)+"cm sem combinação exata; melhor opção usa "+
+          r.total.toFixed(1)+"cm ("+sinal+" de "+Math.abs(diff).toFixed(1)+"cm).");
+      }
+    }
+  }
+
+  function mergeInto(bom, piecesDict, mult){
+    for(const size in piecesDict){ bom[size]=(bom[size]||0)+piecesDict[size]*mult; }
+  }
+
+  // Divide a largura em N trechos iguais (nenhum > 500cm), com cubo + coluna
+  // de sustentação em cada divisão interna quando width > 500cm.
+  function computeWidthAxis(widthCm){
+    let nSegments;
+    if(widthCm <= SUPPORT_SPAN) nSegments = 1;
+    else nSegments = Math.ceil(Math.round(widthCm) / SUPPORT_SPAN);
+
+    const totalClear = widthCm - (nSegments+1)*CUBE;
+    const base = Math.floor(totalClear / nSegments);
+    const rem = Math.round(totalClear - base*nSegments);
+    const segSpans = Array.from({length:nSegments}, (_,i)=> i<rem ? base+1 : base);
+
+    const segments = segSpans.map(s => decomposeSpan(s));
+
+    const splitX0 = [];
+    let cursor = CUBE;
+    segSpans.forEach((span,i)=>{
+      cursor += span;
+      if(i < nSegments-1){ splitX0.push(cursor); cursor += CUBE; }
+    });
+
+    return {nSegments, segments, splitX0, segSpans};
+  }
+
+  function computeTower(w,d,h){
+    const heightResult = decomposeSpan(h - 2*CUBE);
+    const depthResult = decomposeSpan(d - 2*CUBE);
+    const widthAxis = computeWidthAxis(w);
+
+    const bom={}, warnings=[];
+    mergeInto(bom, heightResult.pieces, 4);
+    warnFor('Altura', heightResult, warnings);
+    mergeInto(bom, depthResult.pieces, 4);
+    warnFor('Profundidade', depthResult, warnings);
+
+    const nSeg = widthAxis.nSegments;
+    widthAxis.segments.forEach((seg,i)=>{
+      const label = nSeg===1 ? 'Largura' : `Largura (trecho ${i+1}/${nSeg})`;
+      mergeInto(bom, seg.pieces, 4);
+      warnFor(label, seg, warnings);
+    });
+
+    const nInterior = nSeg-1;
+    let cubes = 8 + 4*nInterior;
+    if(nInterior){
+      mergeInto(bom, heightResult.pieces, 2*nInterior);
+      const s = nInterior>1 ? 's' : '';
+      warnings.push(`Largura de ${w.toFixed(0)}cm > ${SUPPORT_SPAN}cm: adicionada${s} ${nInterior} coluna${s} de sustentação intermediária${s} (estrutura dividida em ${nSeg} trechos).`);
+    }
+
+    const detail = {height:heightResult, depth:depthResult, widthSegments:widthAxis.segments, widthSplitX0:widthAxis.splitX0, widthNSegments:nSeg};
+    return {bom, cubes, detail, warnings};
+  }
+
+  function computeBackdrop(w,h){
+    const heightResult = decomposeSpan(h - 2*CUBE);
+    const widthAxis = computeWidthAxis(w);
+
+    const bom={}, warnings=[];
+    mergeInto(bom, heightResult.pieces, 2);
+    warnFor('Altura', heightResult, warnings);
+
+    const nSeg = widthAxis.nSegments;
+    widthAxis.segments.forEach((seg,i)=>{
+      const label = nSeg===1 ? 'Largura' : `Largura (trecho ${i+1}/${nSeg})`;
+      mergeInto(bom, seg.pieces, 2);
+      warnFor(label, seg, warnings);
+    });
+
+    const nInterior = nSeg-1;
+    let cubes = 4 + 2*nInterior;
+    if(nInterior){
+      mergeInto(bom, heightResult.pieces, nInterior);
+      const s = nInterior>1 ? 's' : '';
+      warnings.push(`Largura de ${w.toFixed(0)}cm > ${SUPPORT_SPAN}cm: adicionada${s} ${nInterior} coluna${s} de sustentação intermediária${s} (estrutura dividida em ${nSeg} trechos).`);
+    }
+
+    const detail = {height:heightResult, widthSegments:widthAxis.segments, widthSplitX0:widthAxis.splitX0, widthNSegments:nSeg};
+    return {bom, cubes, detail, warnings};
+  }
+
+  // ============================================================
+  // Paleta (mesmas cores do add-on Blender, para consistência)
+  // ============================================================
+  const PIECE_PALETTE = {
+    300:[217,64,38], 270:[217,115,38], 250:[217,166,38], 200:[191,191,38],
+    170:[115,191,64], 150:[51,179,140], 100:[51,140,191], 70:[77,89,204],
+    50:[140,77,204], 20:[191,77,166],
+    cube:[38,43,51], brace:[150,160,172]
+  };
+
+  // ============================================================
+  // Estado
+  // ============================================================
+  let structureType = 'TORRE';
+  let W=150, D=150, H=300;
+  let lastResult = null;
+
+  const sceneFaces=[];
+  const sceneLines=[];
+  const usedSizes = new Set();
+
+  function boxFaces(x0,x1,y0,y1,z0,z1,mat){
+    const v=[
+      [x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0],
+      [x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]
+    ];
+    const defs=[
+      {idx:[0,1,2,3], n:[0,0,-1]},
+      {idx:[5,4,7,6], n:[0,0, 1]},
+      {idx:[4,0,3,7], n:[-1,0,0]},
+      {idx:[1,5,6,2], n:[ 1,0,0]},
+      {idx:[4,5,1,0], n:[0,-1,0]},
+      {idx:[3,2,6,7], n:[0, 1,0]}
+    ];
+    return defs.map(f=>({ verts:f.idx.map(i=>v[i]), normal:f.n, mat:mat }));
+  }
+
+  function addCube(x0,y0,z0){
+    sceneFaces.push(...boxFaces(x0,x0+CUBE, y0,y0+CUBE, z0,z0+CUBE, 'cube'));
+  }
+
+  // axis: 'x'(largura) | 'y'(altura) | 'z'(profundidade) — mesma convenção do totem original
+  function addTrussRun(axis, lo, fixedA0, fixedB0, piecesCombo, total){
+    const axes = ['x','y','z'].filter(a=>a!==axis);
+    const profA=axes[0], profB=axes[1];
+    const corners=[[0,0],[0,CUBE-ROD],[CUBE-ROD,0],[CUBE-ROD,CUBE-ROD]];
+
+    const seq=[];
+    Object.keys(piecesCombo).map(Number).sort((a,b)=>b-a).forEach(size=>{
+      for(let i=0;i<piecesCombo[size];i++) seq.push(size);
+    });
+
+    corners.forEach(([oa,ob])=>{
+      let cursor=lo;
+      seq.forEach(length=>{
+        const b={};
+        b[axis+'0']=cursor; b[axis+'1']=cursor+length;
+        b[profA+'0']=fixedA0+oa; b[profA+'1']=fixedA0+oa+ROD;
+        b[profB+'0']=fixedB0+ob; b[profB+'1']=fixedB0+ob+ROD;
+        sceneFaces.push(...boxFaces(b.x0,b.x1,b.y0,b.y1,b.z0,b.z1,length));
+        cursor+=length;
+        usedSizes.add(length);
+      });
+    });
+
+    function makePoint(tv,av,bv){ const p={}; p[axis]=tv; p[profA]=av; p[profB]=bv; return [p.x,p.y,p.z]; }
+    const hi = lo+total;
+    const N = Math.max(1, Math.round(total/25));
+    const pairs=[ [corners[0],corners[1]], [corners[1],corners[3]], [corners[3],corners[2]], [corners[2],corners[0]] ];
+    pairs.forEach(([c1,c2])=>{
+      const p1c=[fixedA0+c1[0]+ROD/2, fixedB0+c1[1]+ROD/2];
+      const p2c=[fixedA0+c2[0]+ROD/2, fixedB0+c2[1]+ROD/2];
+      for(let i=0;i<N;i++){
+        const t0=lo+(hi-lo)*i/N, t1=lo+(hi-lo)*(i+1)/N;
+        const from=(i%2===0)?p1c:p2c, to=(i%2===0)?p2c:p1c;
+        sceneLines.push({ p1:makePoint(t0,from[0],from[1]), p2:makePoint(t1,to[0],to[1]), mat:'brace' });
+      }
+    });
+  }
+
+  let CENTER=[75,150,75];
+
+  function buildScene(){
+    sceneFaces.length=0; sceneLines.length=0; usedSizes.clear();
+
+    const result = structureType==='BACKDROP' ? computeBackdrop(W,H) : computeTower(W,D,H);
+    lastResult = result;
+    const detail = result.detail;
+
+    const x1=W-CUBE, y1=H-CUBE, z1=D-CUBE;
+
+    if(structureType==='TORRE'){
+      for(const x0 of [0,x1]) for(const y0 of [0,y1]) for(const z0 of [0,z1]) addCube(x0,y0,z0);
+
+      const dH=detail.height;
+      for(const x0 of [0,x1]) for(const z0 of [0,z1]) addTrussRun('y', CUBE, x0, z0, dH.pieces, dH.total);
+
+      const dD=detail.depth;
+      for(const x0 of [0,x1]) for(const y0 of [0,y1]) addTrussRun('z', CUBE, x0, y0, dD.pieces, dD.total);
+
+      // largura: segmentada, com cubo + coluna de sustentação em cada divisão interna
+      for(const y0 of [0,y1]) for(const z0 of [0,z1]){
+        let cursor = CUBE;
+        detail.widthSegments.forEach(seg=>{
+          addTrussRun('x', cursor, y0, z0, seg.pieces, seg.total);
+          cursor += seg.total + CUBE;
+        });
+      }
+      detail.widthSplitX0.forEach(xi=>{
+        for(const y0 of [0,y1]) for(const z0 of [0,z1]) addCube(xi,y0,z0);
+        for(const z0 of [0,z1]) addTrussRun('y', CUBE, xi, z0, dH.pieces, dH.total);
+      });
+
+      CENTER=[W/2,H/2,D/2];
+    } else {
+      for(const x0 of [0,x1]) for(const y0 of [0,y1]) addCube(x0,y0,0);
+
+      const dH=detail.height;
+      for(const x0 of [0,x1]) addTrussRun('y', CUBE, x0, 0, dH.pieces, dH.total);
+
+      // largura: segmentada, com cubo + coluna de sustentação em cada divisão interna
+      for(const y0 of [0,y1]){
+        let cursor = CUBE;
+        detail.widthSegments.forEach(seg=>{
+          addTrussRun('x', cursor, y0, 0, seg.pieces, seg.total);
+          cursor += seg.total + CUBE;
+        });
+      }
+      detail.widthSplitX0.forEach(xi=>{
+        for(const y0 of [0,y1]) addCube(xi,y0,0);
+        addTrussRun('y', CUBE, xi, 0, dH.pieces, dH.total);
+      });
+
+      CENTER=[W/2,H/2,CUBE/2];
+    }
+
+    // grade do chão
+    const gx0=Math.min(-90,-W*0.3), gx1=Math.max(W+90,W*1.3);
+    const gz0=Math.min(-90,-D*0.3 - (structureType==='BACKDROP'?60:0)), gz1=Math.max((D||60)+90,(D||60)*1.3);
+    for(let gx=Math.round(gx0/30)*30; gx<=gx1; gx+=30) sceneLines.push({p1:[gx,0,gz0], p2:[gx,0,gz1], mat:'grid'});
+    for(let gz=Math.round(gz0/30)*30; gz<=gz1; gz+=30) sceneLines.push({p1:[gx0,0,gz], p2:[gx1,0,gz], mat:'grid'});
+
+    updateBomPanel(result);
+    updateLegend();
+    computeFit();
+  }
+
+  // ============================================================
+  // Câmera / projeção (motor reaproveitado do protótipo original)
+  // ============================================================
+  const CAM_DIST=780, FOCAL_PX=760;
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const cam = { theta: 35*Math.PI/180, phi: 22*Math.PI/180, zoom: 1 };
+  let autoRotate=false, dragging=false, lastX=0, lastY=0;
+
+  function rotatePoint(p, theta, phi, doCenter){
+    let x=p[0], y=p[1], z=p[2];
+    if(doCenter){ x-=CENTER[0]; y-=CENTER[1]; z-=CENTER[2]; }
+    const ct=Math.cos(theta), st=Math.sin(theta);
+    const x1=x*ct+z*st, z1=-x*st+z*ct, y1=y;
+    const cp=Math.cos(phi), sp=Math.sin(phi);
+    const y2=y1*cp-z1*sp, z2=y1*sp+z1*cp, x2=x1;
+    return [x2,y2,z2];
+  }
+
+  const canvas=document.getElementById('c');
+  const ctx=canvas.getContext('2d');
+  let cssW=0, cssH=0, DPR=Math.min(window.devicePixelRatio||1,2), fitScale=1;
+
+  function computeFit(){
+    const s0 = FOCAL_PX/CAM_DIST;
+    const halfDiag = Math.hypot(CENTER[0],CENTER[1],CENTER[2]) || 100;
+    const projR = halfDiag*s0;
+    const target = Math.min(cssW,cssH)*0.36;
+    fitScale = target/projR;
+  }
+
+  function resize(){
+    const rect = canvas.parentElement.getBoundingClientRect();
+    cssW=rect.width; cssH=rect.height;
+    canvas.width=Math.round(cssW*DPR);
+    canvas.height=Math.round(cssH*DPR);
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+    computeFit();
+  }
+  new ResizeObserver(resize).observe(canvas.parentElement);
+  resize();
+
+  function isDark(){
+    const r=document.documentElement;
+    const t=r.getAttribute('data-theme');
+    if(t==='dark') return true;
+    if(t==='light') return false;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+
+  function themePalette(dark){
+    return dark? {
+      grid:[120,140,160], bg1:[10,14,19], bg2:[27,36,46], shadow:'rgba(0,0,0,0.55)'
+    } : {
+      grid:[110,128,145], bg1:[221,227,232], bg2:[244,246,248], shadow:'rgba(20,30,40,0.28)'
+    };
+  }
+
+  function project(p3){
+    const [x2,y2,z2]=rotatePoint(p3, cam.theta, cam.phi, true);
+    const z_cam=z2+CAM_DIST;
+    const s=(FOCAL_PX/z_cam)*cam.zoom*fitScale;
+    return { sx: cssW/2 + x2*s, sy: cssH*0.46 - y2*s, z_cam };
+  }
+  function projectDir(n){ return rotatePoint(n, cam.theta, cam.phi, false); }
+
+  const LIGHT=(()=>{ const l=[0.35,0.62,0.70]; const len=Math.hypot(l[0],l[1],l[2]); return [l[0]/len,l[1]/len,l[2]/len]; })();
+
+  function shade(rgb, brightness){
+    return 'rgb('+Math.round(rgb[0]*brightness)+','+Math.round(rgb[1]*brightness)+','+Math.round(rgb[2]*brightness)+')';
+  }
+
+  function colorFor(matKey, pal){
+    if(matKey==='grid') return pal.grid;
+    return PIECE_PALETTE[matKey] || [150,150,150];
+  }
+
+  function render(){
+    const dark=isDark();
+    const pal=themePalette(dark);
+
+    const g=ctx.createLinearGradient(0,0,0,cssH);
+    g.addColorStop(0, 'rgb('+pal.bg2.join(',')+')');
+    g.addColorStop(1, 'rgb('+pal.bg1.join(',')+')');
+    ctx.fillStyle=g;
+    ctx.fillRect(0,0,cssW,cssH);
+
+    const base=project([CENTER[0],0,CENTER[2]]);
+    const spread=Math.max(40, (W)*(FOCAL_PX/CAM_DIST)*cam.zoom*fitScale*0.55);
+    const rg=ctx.createRadialGradient(base.sx,base.sy,4,base.sx,base.sy,spread);
+    rg.addColorStop(0, pal.shadow);
+    rg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle=rg;
+    ctx.beginPath();
+    ctx.ellipse(base.sx, base.sy, spread, spread*0.38, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    const drawList=[];
+
+    for(const f of sceneFaces){
+      const nCam=projectDir(f.normal);
+      if(nCam[2] > -0.02) continue;
+      const pts=f.verts.map(project);
+      let z=0; for(const p of pts) z+=p.z_cam; z/=pts.length;
+      const b=0.42+0.58*Math.max(0, -(nCam[0]*LIGHT[0]+nCam[1]*LIGHT[1]+nCam[2]*LIGHT[2]));
+      drawList.push({ type:'face', pts, z, color: shade(colorFor(f.mat,pal), b) });
+    }
+    for(const ln of sceneLines){
+      const p1=project(ln.p1), p2=project(ln.p2);
+      const z=(p1.z_cam+p2.z_cam)/2;
+      let color, width;
+      if(ln.mat==='grid'){ color='rgba('+pal.grid.join(',')+',0.22)'; width=1; }
+      else { color='rgba('+colorFor(ln.mat,pal).join(',')+',0.55)'; width=1.1; }
+      drawList.push({ type:'line', p1, p2, z, color, width });
+    }
+
+    drawList.sort((a,b)=>b.z-a.z);
+
+    for(const it of drawList){
+      if(it.type==='face'){
+        ctx.beginPath();
+        ctx.moveTo(it.pts[0].sx, it.pts[0].sy);
+        for(let i=1;i<it.pts.length;i++) ctx.lineTo(it.pts[i].sx, it.pts[i].sy);
+        ctx.closePath();
+        ctx.fillStyle=it.color;
+        ctx.fill();
+      } else {
+        ctx.beginPath();
+        ctx.moveTo(it.p1.sx, it.p1.sy);
+        ctx.lineTo(it.p2.sx, it.p2.sy);
+        ctx.strokeStyle=it.color;
+        ctx.lineWidth=it.width;
+        ctx.stroke();
+      }
+    }
+  }
+
+  // ============================================================
+  // Interação (câmera)
+  // ============================================================
+  const hint=document.getElementById('hint');
+  let hintShown=true;
+  function fadeHint(){ if(hintShown){ hintShown=false; hint.classList.add('hidden'); } }
+
+  canvas.addEventListener('pointerdown', e=>{
+    dragging=true; lastX=e.clientX; lastY=e.clientY;
+    canvas.setPointerCapture(e.pointerId);
+    canvas.classList.add('dragging');
+    setAutoRotate(false);
+    fadeHint();
+  });
+  window.addEventListener('pointermove', e=>{
+    if(!dragging) return;
+    const dx=e.clientX-lastX, dy=e.clientY-lastY;
+    lastX=e.clientX; lastY=e.clientY;
+    cam.theta += dx*0.006;
+    cam.phi = Math.max(-1.45, Math.min(1.45, cam.phi - dy*0.006));
+    clearActive();
+  });
+  window.addEventListener('pointerup', ()=>{ dragging=false; canvas.classList.remove('dragging'); });
+
+  canvas.addEventListener('wheel', e=>{
+    e.preventDefault();
+    cam.zoom = Math.max(0.3, Math.min(4, cam.zoom * (e.deltaY>0? 0.92:1.08)));
+    fadeHint();
+  }, {passive:false});
+
+  function clearActive(){ document.querySelectorAll('.dock button[data-view]').forEach(b=>b.classList.remove('active')); }
+
+  const VIEWS = {
+    front: { theta:0, phi:0.02, zoom:1 },
+    side:  { theta:Math.PI/2, phi:0.02, zoom:1 },
+    top:   { theta:0.28, phi:1.45, zoom:1 },
+    iso:   { theta:35*Math.PI/180, phi:22*Math.PI/180, zoom:1 }
+  };
+
+  let anim=null;
+  function animateTo(target){
+    fadeHint();
+    const from={theta:cam.theta, phi:cam.phi, zoom:cam.zoom};
+    let dt = target.theta - from.theta;
+    dt = ((dt+Math.PI) % (2*Math.PI) + 2*Math.PI) % (2*Math.PI) - Math.PI;
+    const toTheta = from.theta + dt;
+    if(reduceMotion){
+      cam.theta=target.theta; cam.phi=target.phi; cam.zoom=target.zoom;
+      return;
+    }
+    const dur=550, start=performance.now();
+    if(anim) cancelAnimationFrame(anim);
+    function step(now){
+      const t=Math.min(1,(now-start)/dur);
+      const e=t<0.5? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2;
+      cam.theta = from.theta + (toTheta-from.theta)*e;
+      cam.phi   = from.phi + (target.phi-from.phi)*e;
+      cam.zoom  = from.zoom + (target.zoom-from.zoom)*e;
+      if(t<1) anim=requestAnimationFrame(step);
+    }
+    anim=requestAnimationFrame(step);
+  }
+
+  document.querySelectorAll('.dock button[data-view]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      setAutoRotate(false);
+      clearActive();
+      document.querySelectorAll('.dock button[data-view="'+btn.dataset.view+'"]').forEach(b=>b.classList.add('active'));
+      animateTo(VIEWS[btn.dataset.view]);
+    });
+  });
+
+  // Existem duas cópias dos botões (.dock-desktop / .dock-mobile — só uma
+  // visível por vez via CSS, ver comentário no <style>), então cada ação é
+  // ligada a TODOS os elementos com a classe correspondente, não a um id
+  // único, e o estado (texto/active) é espelhado nas duas cópias.
+  const rotBtns = document.querySelectorAll('.rotBtn');
+  function setAutoRotate(v){
+    autoRotate=v;
+    rotBtns.forEach(b=>{
+      b.textContent = v? 'Girar ■' : 'Girar ▶';
+      b.classList.toggle('active', v);
+    });
+  }
+  rotBtns.forEach(b=>b.addEventListener('click', ()=>{ fadeHint(); setAutoRotate(!autoRotate); }));
+
+  document.querySelectorAll('.zoomInBtn').forEach(b=>b.addEventListener('click', ()=>{ cam.zoom=Math.min(4,cam.zoom*1.15); fadeHint(); }));
+  document.querySelectorAll('.zoomOutBtn').forEach(b=>b.addEventListener('click', ()=>{ cam.zoom=Math.max(0.3,cam.zoom*0.87); fadeHint(); }));
+
+  let last=performance.now();
+  function loop(now){
+    const dt=(now-last)/1000; last=now;
+    if(autoRotate && !dragging) cam.theta += dt*0.35;
+    render();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  // ============================================================
+  // Painel: formulário, BOM, avisos, export
+  // ============================================================
+  const inW=document.getElementById('inW'), inD=document.getElementById('inD'), inH=document.getElementById('inH');
+  const depthField=document.getElementById('depthField');
+  const headerSub=document.getElementById('headerSub');
+  const bomTable=document.getElementById('bomTable');
+  const warnArea=document.getElementById('warnArea');
+  const legendEl=document.getElementById('legend');
+
+  function selectStructureType(btn){
+    document.querySelectorAll('#typeSeg button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    structureType = btn.dataset.type;
+    depthField.style.display = structureType==='BACKDROP' ? 'none' : 'flex';
+    regenerate();
+  }
+  // Ligado tanto a pointerdown quanto a click: alguns navegadores com tradução
+  // automática ativa engolem o primeiro "click" da página; pointerdown dispara
+  // mais cedo no ciclo do evento e costuma escapar dessa interferência.
+  // selectStructureType é idempotente (reaplicar o mesmo tipo é inofensivo),
+  // então não há problema se os dois disparos ocorrerem no mesmo clique.
+  document.querySelectorAll('#typeSeg button').forEach(btn=>{
+    btn.addEventListener('pointerdown', ()=>selectStructureType(btn));
+    btn.addEventListener('click', ()=>selectStructureType(btn));
+  });
+
+  function readInputs(){
+    W = Math.max(30, parseFloat(inW.value)||150);
+    D = structureType==='BACKDROP' ? 0 : Math.max(30, parseFloat(inD.value)||150);
+    H = Math.max(30, parseFloat(inH.value)||300);
+  }
+
+  function regenerate(){
+    readInputs();
+    buildScene();
+    const dims = structureType==='BACKDROP' ? (W+' × '+H+' cm (backdrop)') : (W+' × '+D+' × '+H+' cm');
+    headerSub.textContent = dims + ' · arraste para girar';
+    requestAnimationFrame(updateScrollHint);
+  }
+
+  document.getElementById('btnGerar').addEventListener('pointerdown', regenerate);
+  document.getElementById('btnGerar').addEventListener('click', regenerate);
+
+  // ============================================================
+  // Seta de "tem mais conteúdo aqui embaixo": o painel lateral tem rolagem
+  // própria (campos variam de altura entre Torre e Backdrop, então o quanto
+  // sobra de conteúdo escondido muda). Mostra a seta sempre que houver algo
+  // abaixo do que está visível; clicar nela rola o painel.
+  // ============================================================
+  const sidebarEl = document.querySelector('.sidebar');
+  const scrollHintEl = document.getElementById('scrollHint');
+  function updateScrollHint(){
+    const hasMore = sidebarEl.scrollHeight - sidebarEl.scrollTop - sidebarEl.clientHeight > 4;
+    scrollHintEl.classList.toggle('visible', hasMore);
+  }
+  sidebarEl.addEventListener('scroll', updateScrollHint);
+  window.addEventListener('resize', ()=>requestAnimationFrame(updateScrollHint));
+  scrollHintEl.addEventListener('click', ()=>{
+    sidebarEl.scrollBy({top: sidebarEl.clientHeight*0.75, behavior:'smooth'});
+  });
+  [inW,inD,inH].forEach(inp=>{
+    inp.addEventListener('keydown', e=>{ if(e.key==='Enter') regenerate(); });
+  });
+
+  function updateBomPanel(result){
+    let rows = '';
+    if(result.cubes){
+      rows += '<tr><td><span class="sw" style="background:rgb('+PIECE_PALETTE.cube.join(',')+')"></span>Cubo 15cm</td><td class="qty">'+result.cubes+'</td></tr>';
+    }
+    let totalPieces = 0;
+    Object.keys(result.bom).map(Number).sort((a,b)=>b-a).forEach(size=>{
+      const qty = result.bom[size];
+      totalPieces += qty;
+      const c = PIECE_PALETTE[size]||[150,150,150];
+      rows += '<tr><td><span class="sw" style="background:rgb('+c.join(',')+')"></span>Peça '+size+'cm</td><td class="qty">'+qty+'</td></tr>';
+    });
+    rows += '<tr class="total"><td>Total de peças</td><td class="qty">'+totalPieces+'</td></tr>';
+    bomTable.innerHTML = rows;
+
+    if(result.warnings.length){
+      warnArea.innerHTML = '<div class="warnbox"><b>Avisos</b>'+result.warnings.map(w=>('&bull; '+w)).join('<br>')+'</div>';
+    } else {
+      warnArea.innerHTML = '<div class="okbox">✓ todos os vãos com combinação exata</div>';
+    }
+  }
+
+  function updateLegend(){
+    const sizes = Array.from(usedSizes).sort((a,b)=>b-a);
+    let rows = '<div class="row"><span class="sw" style="background:rgb('+PIECE_PALETTE.cube.join(',')+')"></span>Cubo 15cm</div>';
+    sizes.forEach(size=>{
+      const c = PIECE_PALETTE[size]||[150,150,150];
+      rows += '<div class="row"><span class="sw" style="background:rgb('+c.join(',')+')"></span>Peça '+size+'cm</div>';
+    });
+    legendEl.innerHTML = rows;
+  }
+
+  function downloadBlob(filename, content, mime){
+    const blob = new Blob([content], {type:mime});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  document.getElementById('btnCsv').addEventListener('click', ()=>{
+    if(!lastResult) return;
+    let csv = 'Item,Quantidade\n';
+    if(lastResult.cubes) csv += 'Cubo de ligação 15cm,'+lastResult.cubes+'\n';
+    Object.keys(lastResult.bom).map(Number).sort((a,b)=>b-a).forEach(size=>{
+      csv += 'Peça '+size+'cm,'+lastResult.bom[size]+'\n';
+    });
+    downloadBlob('quantitativo_box_truss.csv', csv, 'text/csv;charset=utf-8');
+  });
+
+  document.getElementById('btnJson').addEventListener('click', ()=>{
+    const data = {
+      type: structureType,
+      width_cm: W,
+      depth_cm: structureType==='BACKDROP' ? null : D,
+      height_cm: H,
+    };
+    downloadBlob('box_truss_export.json', JSON.stringify(data, null, 2), 'application/json');
+  });
+
+  // ============================================================
+  // Boot
+  // ============================================================
+  regenerate();
+
+})();
+</script>
