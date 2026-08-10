@@ -129,13 +129,6 @@ header .sub{ font-family:var(--font-mono); font-size:11px; color:var(--ink-soft)
 }
 .seg button.active{ background:var(--accent) !important; color:#fff !important; }
 
-/* Tipo de estrutura tem 4 opções — vira grid 2x2 em vez de 4 colunas
-   apertadas numa linha só (que cortava o texto de "Personalizado"). */
-#typeSeg{ flex-wrap:wrap !important; height:auto !important; min-height:0 !important; overflow:visible !important; }
-#typeSeg button{ flex:1 1 50% !important; box-sizing:border-box; border-bottom:1px solid var(--panel-border) !important; border-right:1px solid var(--panel-border) !important; }
-#typeSeg button:nth-child(2n){ border-right:none !important; }
-#typeSeg button:nth-child(3), #typeSeg button:nth-child(4){ border-bottom:none !important; }
-
 .btn{
   display:block !important; font-family:var(--font-display) !important; font-size:12px !important; letter-spacing:.04em; text-transform:uppercase;
   padding:10px 12px !important; border:1px solid var(--border) !important; border-radius:2px; cursor:pointer;
@@ -330,41 +323,6 @@ canvas.dragging{ cursor:grabbing; }
 }
 .piecesGrid input[type="checkbox"]{ accent-color:var(--accent); width:14px; height:14px; cursor:pointer; }
 .piecesHint{ font-size:10.5px; color:var(--ink-faint); line-height:1.5; margin-top:8px; }
-
-/* Projeto personalizado — várias peças combinadas, cada uma com suas
-   medidas + posição (X/Z arrastando na planta, Y num campo simples). */
-.addPieceRow{ display:flex; gap:6px; margin-top:2px; }
-.addPieceRow select{
-  flex:1; font-family:var(--font-mono); font-size:12.5px; padding:7px 8px;
-  border:1px solid var(--panel-border); border-radius:2px; background:var(--paper); color:var(--ink);
-}
-.addPieceRow .btn{ flex:0 0 auto; padding:7px 12px; }
-.piecesEmpty{ font-size:11.5px; color:var(--ink-faint); padding:10px 0; }
-.pieceCard{ border:1px solid var(--panel-border); border-radius:6px; padding:8px 10px; margin-top:8px; }
-.pieceCardHead{
-  display:flex; align-items:center; justify-content:space-between;
-  font-family:var(--font-display); font-size:11px; text-transform:uppercase; letter-spacing:.03em;
-  color:var(--ink-soft); margin-bottom:6px; cursor:pointer;
-}
-.pieceCard.selected{ border-color:var(--accent); }
-.pieceRemove{
-  border:none; background:transparent; color:var(--ink-faint); font-size:15px; line-height:1;
-  cursor:pointer; padding:0 2px;
-}
-.pieceRemove:hover{ color:var(--danger); }
-.pieceFieldsGrid{ display:grid; grid-template-columns:1fr 1fr; gap:6px 8px; min-width:0; }
-.pieceField{ display:flex; flex-direction:column; gap:3px; min-width:0; }
-.pieceField span{ font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-faint); font-family:var(--font-display); }
-.pieceField input{
-  font-family:var(--font-mono); font-size:12px; padding:5px 7px; width:100%; min-width:0; box-sizing:border-box;
-  border:1px solid var(--panel-border); border-radius:2px; background:var(--paper); color:var(--ink);
-}
-.floorplanWrap{
-  width:100%; height:220px; border:1px solid var(--panel-border); border-radius:6px;
-  overflow:hidden; margin-top:8px; background:var(--studio-2);
-}
-#floorplanCanvas{ display:block; width:100%; height:100%; touch-action:none; cursor:grab; }
-#floorplanCanvas.dragging{ cursor:grabbing; }
 
 /* Relatório para exportação em PDF (via impressão do navegador) — fica
    fora da tela normalmente, só aparece formatado quando @media print
@@ -730,11 +688,10 @@ canvas.dragging{ cursor:grabbing; }
       </div>
 
       <div class="section-title">Tipo de estrutura</div>
-      <div class="seg" id="typeSeg" style="flex-wrap:wrap !important; height:auto !important; min-height:68px !important; overflow:visible !important;">
+      <div class="seg" id="typeSeg">
         <button data-type="TORRE" class="active">Torre / Caixa</button>
         <button data-type="BACKDROP">Backdrop</button>
         <button data-type="PORTICO">Pórtico</button>
-        <button data-type="PERSONALIZADO">Personalizado</button>
       </div>
 
       <div class="field" id="widthField">
@@ -766,25 +723,6 @@ canvas.dragging{ cursor:grabbing; }
       <div class="field" id="depthField">
         <label id="depthLabel">Profundidade — cm</label>
         <input type="number" id="inD" value="150" min="30" step="5">
-      </div>
-
-      <div id="customPanel" style="display:none;">
-        <div class="section-title">Peças do projeto</div>
-        <div class="addPieceRow">
-          <select id="addPieceType">
-            <option value="TORRE">Torre / Caixa</option>
-            <option value="BACKDROP">Backdrop</option>
-            <option value="PORTICO">Pórtico</option>
-          </select>
-          <button type="button" class="btn secondary" id="btnAddPiece">+ Adicionar</button>
-        </div>
-        <div id="piecesList"></div>
-
-        <div class="section-title">Planta (arraste para posicionar)</div>
-        <div class="floorplanWrap">
-          <canvas id="floorplanCanvas"></canvas>
-        </div>
-        <div class="piecesHint">Arraste as peças na planta pra posicionar (largura × profundidade). A altura de cada peça é o campo "Altura (Y)" dela.</div>
       </div>
 
       <button type="button" class="piecesToggle" id="piecesToggle">
@@ -1088,52 +1026,6 @@ canvas.dragging{ cursor:grabbing; }
   }
 
   // ============================================================
-  // Projeto personalizado — várias peças (Torre/Caixa, Backdrop, Pórtico)
-  // combinadas num projeto só, cada uma com suas medidas e uma posição
-  // (x,y,z em cm) manual. Sem dedup de cubos nos pontos de encontro
-  // (confirmado com o Jorge que é aceitável — ver PROXIMAS-VERSOES.md).
-  // ============================================================
-  const PIECE_TYPE_LABELS = {TORRE:'Torre/Caixa', BACKDROP:'Backdrop', PORTICO:'Pórtico'};
-
-  function defaultPieceDims(type){
-    if(type==='TORRE') return {w:150, d:150, h:300};
-    if(type==='BACKDROP') return {w:150, h:300};
-    return {legW:60, legH:240, headerW:500, headerH:60, d:150};
-  }
-
-  // Retorna a "pegada" da peça no plano horizontal (largura x profundidade)
-  // — usado pra desenhar o retângulo dela na planta.
-  function pieceFootprint(p){
-    if(p.type==='TORRE') return {w:p.dims.w, d:p.dims.d};
-    if(p.type==='BACKDROP') return {w:p.dims.w, d:CUBE};
-    return {w:p.dims.headerW, d:p.dims.d};
-  }
-
-  function pieceHeight(p){
-    if(p.type==='PORTICO') return p.dims.legH + p.dims.headerH;
-    return p.dims.h;
-  }
-
-  function computePieceResult(p){
-    if(p.type==='TORRE') return computeTower(p.dims.w, p.dims.d, p.dims.h);
-    if(p.type==='BACKDROP') return computeBackdrop(p.dims.w, p.dims.h);
-    return computePortico(p.dims.headerW, p.dims.d, p.dims.legH, p.dims.legW, p.dims.headerH);
-  }
-
-  function computeCustomProject(){
-    const bom={}; let cubes=0; const warnings=[];
-    pieces.forEach((p,i)=>{
-      const r = computePieceResult(p);
-      mergeInto(bom, r.bom, 1);
-      cubes += r.cubes;
-      const label = 'Peça '+(i+1)+' ('+PIECE_TYPE_LABELS[p.type]+')';
-      r.warnings.forEach(w2=>warnings.push(label+' — '+w2));
-    });
-    if(!pieces.length) warnings.push('Nenhuma peça adicionada ainda — use "+ Adicionar" acima.');
-    return {bom, cubes, warnings, detail:{pieces}};
-  }
-
-  // ============================================================
   // Paleta (mesmas cores do add-on Blender, para consistência)
   // ============================================================
   const PIECE_PALETTE = {
@@ -1150,11 +1042,7 @@ canvas.dragging{ cursor:grabbing; }
   let W=150, D=150, H=300;
   // só usados quando structureType === 'PORTICO' — W e H nesse modo são
   // derivados (W = HEADERW, H = LEGH + HEADERH), não digitados direto.
-  let LEGW=60, LEGH=240, HEADERW=500, HEADERH=60;
-  // só usado quando structureType === 'PERSONALIZADO'.
-  let pieces = [];
-  let nextPieceId = 1;
-  let selectedPieceId = null;
+  let LEGW=60, LEGH=240, HEADERW=150, HEADERH=60;
   let lastResult = null;
 
   const sceneFaces=[];
@@ -1250,42 +1138,16 @@ canvas.dragging{ cursor:grabbing; }
     });
   }
 
-  // Desenha um backdrop (moldura plana, uma só "fatia" de profundidade)
-  // deslocado por (ox,oy,oz) — mesma lógica do ramo BACKDROP de
-  // buildScene, parametrizada pra reuso em projetos personalizados.
-  function addBackdropGeometry(ox, oy, oz, w, h, detail){
-    const x1=ox+w-CUBE, y1=oy+h-CUBE;
-    for(const x0 of [ox,x1]) for(const y0 of [oy,y1]) addCube(x0,y0,oz);
-
-    const dH=detail.height;
-    for(const x0 of [ox,x1]) addTrussRun('y', oy+CUBE, x0, oz, dH.pieces, dH.total);
-
-    for(const y0 of [oy,y1]){
-      let cursor = ox+CUBE;
-      detail.widthSegments.forEach(seg=>{
-        addTrussRun('x', cursor, y0, oz, seg.pieces, seg.total);
-        cursor += seg.total + CUBE;
-      });
-    }
-    detail.widthSplitX0.forEach(xiLocal=>{
-      const xi = ox+xiLocal;
-      for(const y0 of [oy,y1]) addCube(xi,y0,oz);
-      addTrussRun('y', oy+CUBE, xi, oz, dH.pieces, dH.total);
-    });
-  }
-
   function buildScene(){
     sceneFaces.length=0; sceneLines.length=0; usedSizes.clear();
 
     const result = structureType==='BACKDROP' ? computeBackdrop(W,H)
                  : structureType==='PORTICO' ? computePortico(HEADERW,D,LEGH,LEGW,HEADERH)
-                 : structureType==='PERSONALIZADO' ? computeCustomProject()
                  : computeTower(W,D,H);
     lastResult = result;
     const detail = result.detail;
 
     const x1=W-CUBE, y1=H-CUBE, z1=D-CUBE;
-    let sceneMinX=0, sceneMaxX=W, sceneMinZ=0, sceneMaxZ=D;
 
     if(structureType==='TORRE'){
       for(const x0 of [0,x1]) for(const y0 of [0,y1]) for(const z0 of [0,z1]) addCube(x0,y0,z0);
@@ -1317,53 +1179,31 @@ canvas.dragging{ cursor:grabbing; }
       addBoxGeometry(0, d2.legH, 0, W, D, d2.headerH, d2.header.detail);
 
       CENTER=[W/2,H/2,D/2];
-    } else if(structureType==='BACKDROP'){
-      addBackdropGeometry(0, 0, 0, W, H, detail);
-      CENTER=[W/2,H/2,CUBE/2];
     } else {
-      // PERSONALIZADO: desenha cada peça na posição (x,y,z) que o
-      // usuário definiu (arrastando na planta + campo de altura).
-      pieces.forEach(p=>{
-        const r = computePieceResult(p);
-        if(p.type==='TORRE'){
-          addBoxGeometry(p.x, p.y, p.z, p.dims.w, p.dims.d, p.dims.h, r.detail);
-        } else if(p.type==='BACKDROP'){
-          addBackdropGeometry(p.x, p.y, p.z, p.dims.w, p.dims.h, r.detail);
-        } else {
-          const rd = r.detail;
-          addBoxGeometry(p.x, p.y, p.z, rd.legW, p.dims.d, rd.legH, rd.leg1.detail);
-          addBoxGeometry(p.x+p.dims.headerW-rd.legW, p.y, p.z, rd.legW, p.dims.d, rd.legH, rd.leg2.detail);
-          addBoxGeometry(p.x, p.y+rd.legH, p.z, p.dims.headerW, p.dims.d, rd.headerH, rd.header.detail);
-        }
+      for(const x0 of [0,x1]) for(const y0 of [0,y1]) addCube(x0,y0,0);
+
+      const dH=detail.height;
+      for(const x0 of [0,x1]) addTrussRun('y', CUBE, x0, 0, dH.pieces, dH.total);
+
+      // largura: segmentada, com cubo + coluna de sustentação em cada divisão interna
+      for(const y0 of [0,y1]){
+        let cursor = CUBE;
+        detail.widthSegments.forEach(seg=>{
+          addTrussRun('x', cursor, y0, 0, seg.pieces, seg.total);
+          cursor += seg.total + CUBE;
+        });
+      }
+      detail.widthSplitX0.forEach(xi=>{
+        for(const y0 of [0,y1]) addCube(xi,y0,0);
+        addTrussRun('y', CUBE, xi, 0, dH.pieces, dH.total);
       });
 
-      if(pieces.length){
-        let minX=Infinity,minY=Infinity,minZ=Infinity,maxX=-Infinity,maxY=-Infinity,maxZ=-Infinity;
-        pieces.forEach(p=>{
-          const fp = pieceFootprint(p);
-          const ph = pieceHeight(p);
-          minX=Math.min(minX,p.x); maxX=Math.max(maxX,p.x+fp.w);
-          minY=Math.min(minY,p.y); maxY=Math.max(maxY,p.y+ph);
-          minZ=Math.min(minZ,p.z); maxZ=Math.max(maxZ,p.z+fp.d);
-        });
-        W=maxX-minX; H=maxY-minY; D=maxZ-minZ;
-        sceneMinX=minX; sceneMaxX=maxX; sceneMinZ=minZ; sceneMaxZ=maxZ;
-        CENTER=[(minX+maxX)/2, (minY+maxY)/2, (minZ+maxZ)/2];
-      } else {
-        W=150; H=300; D=150;
-        sceneMinX=0; sceneMaxX=150; sceneMinZ=0; sceneMaxZ=150;
-        CENTER=[75,150,75];
-      }
+      CENTER=[W/2,H/2,CUBE/2];
     }
 
-    // grade do chão — usa os limites reais da cena (sceneMinX/MaxX/MinZ/MaxZ),
-    // que pra Torre/Backdrop/Pórtico equivalem a 0..W/0..D (mesmo cálculo de
-    // antes) e pro Personalizado seguem a posição real das peças (que podem
-    // ter deslocamentos negativos/variados).
-    const spanX = sceneMaxX-sceneMinX, spanZ = sceneMaxZ-sceneMinZ;
-    const gx0=Math.min(sceneMinX-90, sceneMinX-spanX*0.3), gx1=Math.max(sceneMaxX+90, sceneMaxX+spanX*0.3);
-    const gz0=Math.min(sceneMinZ-90, sceneMinZ-spanZ*0.3) - (structureType==='BACKDROP'?60:0);
-    const gz1=Math.max(sceneMaxZ+90, sceneMaxZ+spanZ*0.3) || 60;
+    // grade do chão
+    const gx0=Math.min(-90,-W*0.3), gx1=Math.max(W+90,W*1.3);
+    const gz0=Math.min(-90,-D*0.3 - (structureType==='BACKDROP'?60:0)), gz1=Math.max((D||60)+90,(D||60)*1.3);
     for(let gx=Math.round(gx0/30)*30; gx<=gx1; gx+=30) sceneLines.push({p1:[gx,0,gz0], p2:[gx,0,gz1], mat:'grid'});
     for(let gz=Math.round(gz0/30)*30; gz<=gz1; gz+=30) sceneLines.push({p1:[gx0,0,gz], p2:[gx1,0,gz], mat:'grid'});
 
@@ -1617,9 +1457,6 @@ canvas.dragging{ cursor:grabbing; }
   const widthField=document.getElementById('widthField'), heightField=document.getElementById('heightField');
   const legWField=document.getElementById('legWField'), legHField=document.getElementById('legHField');
   const headerWField=document.getElementById('headerWField'), headerHField=document.getElementById('headerHField');
-  const customPanel=document.getElementById('customPanel'), piecesListEl=document.getElementById('piecesList');
-  const addPieceType=document.getElementById('addPieceType'), btnAddPiece=document.getElementById('btnAddPiece');
-  const floorplanCanvas=document.getElementById('floorplanCanvas'), floorplanCtx=floorplanCanvas.getContext('2d');
   const headerSub=document.getElementById('headerSub');
   const bomTable=document.getElementById('bomTable');
   const warnArea=document.getElementById('warnArea');
@@ -1630,17 +1467,14 @@ canvas.dragging{ cursor:grabbing; }
     btn.classList.add('active');
     structureType = btn.dataset.type;
     const isPortico = structureType==='PORTICO';
-    const isCustom = structureType==='PERSONALIZADO';
-    depthField.style.display = (structureType==='BACKDROP' || isCustom) ? 'none' : 'flex';
+    depthField.style.display = structureType==='BACKDROP' ? 'none' : 'flex';
     depthLabel.textContent = isPortico ? 'Profundidade (Geral) — cm' : 'Profundidade — cm';
-    widthField.style.display = (isPortico || isCustom) ? 'none' : 'flex';
-    heightField.style.display = (isPortico || isCustom) ? 'none' : 'flex';
+    widthField.style.display = isPortico ? 'none' : 'flex';
+    heightField.style.display = isPortico ? 'none' : 'flex';
     legWField.style.display = isPortico ? 'flex' : 'none';
     legHField.style.display = isPortico ? 'flex' : 'none';
     headerWField.style.display = isPortico ? 'flex' : 'none';
     headerHField.style.display = isPortico ? 'flex' : 'none';
-    customPanel.style.display = isCustom ? 'block' : 'none';
-    if(isCustom){ renderPiecesList(); fitFloorplan(); renderFloorplan(); }
     regenerate();
   }
 
@@ -1669,7 +1503,6 @@ canvas.dragging{ cursor:grabbing; }
   });
 
   function readInputs(){
-    if(structureType==='PERSONALIZADO') return; // W/D/H vêm da caixa envolvente das peças, calculado em buildScene()
     D = structureType==='BACKDROP' ? 0 : Math.max(30, parseFloat(inD.value)||150);
     if(structureType==='PORTICO'){
       LEGW = Math.max(20, parseFloat(inLegW.value)||60);
@@ -1689,7 +1522,6 @@ canvas.dragging{ cursor:grabbing; }
     buildScene();
     const dims = structureType==='BACKDROP' ? (W+' × '+H+' cm (backdrop)')
                : structureType==='PORTICO' ? (W+' × '+D+' × '+H+' cm (pórtico)')
-               : structureType==='PERSONALIZADO' ? (pieces.length+' peça'+(pieces.length===1?'':'s')+' · envolvente '+Math.round(W)+' × '+Math.round(D)+' × '+Math.round(H)+' cm')
                : (W+' × '+D+' × '+H+' cm');
     headerSub.textContent = dims + ' · arraste para girar';
     requestAnimationFrame(updateScrollHint);
@@ -1697,196 +1529,6 @@ canvas.dragging{ cursor:grabbing; }
 
   document.getElementById('btnGerar').addEventListener('pointerdown', regenerate);
   document.getElementById('btnGerar').addEventListener('click', regenerate);
-
-  // ============================================================
-  // Projeto personalizado — lista de peças (adicionar/editar/remover) +
-  // planta baixa 2D pra arrastar e posicionar cada uma.
-  // ============================================================
-  function pieceDimsFields(type){
-    if(type==='TORRE') return [{key:'w',label:'Largura'},{key:'d',label:'Profundidade'},{key:'h',label:'Altura'}];
-    if(type==='BACKDROP') return [{key:'w',label:'Largura'},{key:'h',label:'Altura'}];
-    return [{key:'legW',label:'Larg. Coluna'},{key:'legH',label:'Alt. Coluna'},{key:'headerW',label:'Larg. Testeira'},{key:'headerH',label:'Alt. Testeira'},{key:'d',label:'Profundidade'}];
-  }
-
-  function renderPiecesList(){
-    if(!pieces.length){
-      piecesListEl.innerHTML = '<div class="piecesEmpty">Nenhuma peça ainda — escolha o tipo acima e clique em "+ Adicionar".</div>';
-      return;
-    }
-    piecesListEl.innerHTML = pieces.map((p,i)=>{
-      const fields = pieceDimsFields(p.type).map(f=>
-        '<label class="pieceField"><span>'+f.label+' — cm</span><input type="number" data-piece="'+p.id+'" data-field="'+f.key+'" value="'+p.dims[f.key]+'" min="20" step="5"></label>'
-      ).join('');
-      return '<div class="pieceCard'+(selectedPieceId===p.id?' selected':'')+'" data-piece-card="'+p.id+'">'
-        + '<div class="pieceCardHead" data-select="'+p.id+'"><span>Peça '+(i+1)+' — '+PIECE_TYPE_LABELS[p.type]+'</span>'
-        + '<button type="button" class="pieceRemove" data-remove="'+p.id+'" title="Remover">×</button></div>'
-        + '<div class="pieceFieldsGrid">'+fields
-        + '<label class="pieceField"><span>Altura (Y) — cm</span><input type="number" data-piece="'+p.id+'" data-field="_y" value="'+p.y+'" min="0" step="5"></label>'
-        + '</div></div>';
-    }).join('');
-  }
-
-  function addPiece(type){
-    const id = nextPieceId++;
-    // empilha a peça nova ao lado da última, pra não nascer tudo empilhado no mesmo lugar
-    const last = pieces[pieces.length-1];
-    const x = last ? last.x + pieceFootprint(last).w + 30 : 0;
-    pieces.push({id, type, dims:defaultPieceDims(type), x, y:0, z:0});
-    selectedPieceId = id;
-    renderPiecesList();
-    fitFloorplan();
-    renderFloorplan();
-    regenerate();
-  }
-
-  function removePiece(id){
-    pieces = pieces.filter(p=>p.id!==id);
-    if(selectedPieceId===id) selectedPieceId = null;
-    renderPiecesList();
-    fitFloorplan();
-    renderFloorplan();
-    regenerate();
-  }
-
-  btnAddPiece.addEventListener('click', ()=> addPiece(addPieceType.value));
-
-  piecesListEl.addEventListener('click', e=>{
-    const rm = e.target.closest('[data-remove]');
-    if(rm){ removePiece(Number(rm.dataset.remove)); return; }
-    const head = e.target.closest('[data-select]');
-    if(head){
-      selectedPieceId = Number(head.dataset.select);
-      renderPiecesList();
-      renderFloorplan();
-    }
-  });
-
-  piecesListEl.addEventListener('input', e=>{
-    const t = e.target;
-    if(!t.dataset.piece) return;
-    const p = pieces.find(pp=>pp.id===Number(t.dataset.piece));
-    if(!p) return;
-    const val = Math.max(1, parseFloat(t.value)||1);
-    if(t.dataset.field==='_y') p.y = val;
-    else p.dims[t.dataset.field] = val;
-    fitFloorplan();
-    renderFloorplan();
-    regenerate();
-  });
-
-  // --- Planta baixa (vista de cima): arrastar pra posicionar X/Z ---
-  let fpScale=1, fpOriginX=0, fpOriginZ=0;
-  let fpDragging=null; // {id, dx, dz} — offset do ponteiro dentro do retângulo, em px
-
-  function fitFloorplan(){
-    const rect = floorplanCanvas.getBoundingClientRect();
-    const cw = rect.width||260, ch = rect.height||220;
-    if(!pieces.length){ fpScale=0.5; fpOriginX=-cw/2/fpScale; fpOriginZ=-ch/2/fpScale; return; }
-    let minX=Infinity,minZ=Infinity,maxX=-Infinity,maxZ=-Infinity;
-    pieces.forEach(p=>{
-      const fp = pieceFootprint(p);
-      minX=Math.min(minX,p.x); maxX=Math.max(maxX,p.x+fp.w);
-      minZ=Math.min(minZ,p.z); maxZ=Math.max(maxZ,p.z+fp.d);
-    });
-    const pad = Math.max(40, (maxX-minX)*0.15, (maxZ-minZ)*0.15);
-    const spanX = (maxX-minX)+2*pad, spanZ = (maxZ-minZ)+2*pad;
-    fpScale = Math.max(0.02, Math.min(cw/spanX, ch/spanZ));
-    fpOriginX = minX-pad; fpOriginZ = minZ-pad;
-  }
-
-  function renderFloorplan(){
-    const rect = floorplanCanvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio||1;
-    const cw = rect.width||260, ch = rect.height||220;
-    floorplanCanvas.width = Math.round(cw*dpr);
-    floorplanCanvas.height = Math.round(ch*dpr);
-    floorplanCtx.setTransform(dpr,0,0,dpr,0,0);
-    floorplanCtx.clearRect(0,0,cw,ch);
-
-    // grade de referência a cada 50cm
-    floorplanCtx.strokeStyle = 'rgba(133,146,160,0.18)';
-    floorplanCtx.lineWidth = 1;
-    const gStep = 50*fpScale;
-    if(gStep > 4){
-      const offX = -(fpOriginX*fpScale) % gStep;
-      const offZ = -(fpOriginZ*fpScale) % gStep;
-      for(let gx=offX; gx<cw; gx+=gStep){ floorplanCtx.beginPath(); floorplanCtx.moveTo(gx,0); floorplanCtx.lineTo(gx,ch); floorplanCtx.stroke(); }
-      for(let gz=offZ; gz<ch; gz+=gStep){ floorplanCtx.beginPath(); floorplanCtx.moveTo(0,gz); floorplanCtx.lineTo(cw,gz); floorplanCtx.stroke(); }
-    }
-
-    pieces.forEach((p,i)=>{
-      const fp = pieceFootprint(p);
-      const x=(p.x-fpOriginX)*fpScale, z=(p.z-fpOriginZ)*fpScale, w=fp.w*fpScale, d=fp.d*fpScale;
-      const sel = selectedPieceId===p.id;
-      floorplanCtx.fillStyle = sel ? 'rgba(217,98,43,0.38)' : 'rgba(217,98,43,0.20)';
-      floorplanCtx.strokeStyle = '#D9622B';
-      floorplanCtx.lineWidth = sel ? 2 : 1;
-      floorplanCtx.fillRect(x,z,w,d);
-      floorplanCtx.strokeRect(x,z,w,d);
-      floorplanCtx.fillStyle = '#EDF1F4';
-      floorplanCtx.font = '10px monospace';
-      floorplanCtx.fillText('P'+(i+1), x+4, z+13);
-    });
-
-    if(!pieces.length){
-      floorplanCtx.fillStyle = 'rgba(133,146,160,0.7)';
-      floorplanCtx.font = '11px monospace';
-      floorplanCtx.fillText('adicione peças pra ver aqui', 12, ch/2);
-    }
-  }
-
-  function fpHitTest(mx, my){
-    for(let i=pieces.length-1;i>=0;i--){
-      const p = pieces[i];
-      const fp = pieceFootprint(p);
-      const x=(p.x-fpOriginX)*fpScale, z=(p.z-fpOriginZ)*fpScale, w=fp.w*fpScale, d=fp.d*fpScale;
-      if(mx>=x && mx<=x+w && my>=z && my<=z+d) return p;
-    }
-    return null;
-  }
-
-  floorplanCanvas.addEventListener('pointerdown', e=>{
-    const rect = floorplanCanvas.getBoundingClientRect();
-    const mx=e.clientX-rect.left, my=e.clientY-rect.top;
-    const hit = fpHitTest(mx,my);
-    if(hit){
-      const x=(hit.x-fpOriginX)*fpScale, z=(hit.z-fpOriginZ)*fpScale;
-      fpDragging = {id:hit.id, dx:mx-x, dz:my-z};
-      selectedPieceId = hit.id;
-      floorplanCanvas.setPointerCapture(e.pointerId);
-      floorplanCanvas.classList.add('dragging');
-      renderPiecesList();
-      renderFloorplan();
-    } else {
-      selectedPieceId = null;
-      renderPiecesList();
-      renderFloorplan();
-    }
-  });
-  floorplanCanvas.addEventListener('pointermove', e=>{
-    if(!fpDragging) return;
-    const rect = floorplanCanvas.getBoundingClientRect();
-    const mx=e.clientX-rect.left, my=e.clientY-rect.top;
-    const p = pieces.find(pp=>pp.id===fpDragging.id);
-    if(!p) return;
-    let nx = fpOriginX + (mx-fpDragging.dx)/fpScale;
-    let nz = fpOriginZ + (my-fpDragging.dz)/fpScale;
-    nx = Math.round(nx/10)*10; // snap leve de 10cm
-    nz = Math.round(nz/10)*10;
-    p.x = nx; p.z = nz;
-    renderFloorplan();
-  });
-  function fpEndDrag(e){
-    if(!fpDragging) return;
-    floorplanCanvas.classList.remove('dragging');
-    fpDragging = null;
-    renderPiecesList();
-    regenerate();
-  }
-  floorplanCanvas.addEventListener('pointerup', fpEndDrag);
-  floorplanCanvas.addEventListener('pointercancel', fpEndDrag);
-
-  new ResizeObserver(()=>{ if(structureType==='PERSONALIZADO'){ fitFloorplan(); renderFloorplan(); } }).observe(floorplanCanvas.parentElement);
 
   // ============================================================
   // Peças disponíveis — cada empresa/montador pode ter só um subconjunto
