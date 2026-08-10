@@ -694,25 +694,35 @@ canvas.dragging{ cursor:grabbing; }
         <button data-type="PORTICO">Pórtico</button>
       </div>
 
-      <div class="field">
+      <div class="field" id="widthField">
         <label>Largura — cm</label>
         <input type="number" id="inW" value="150" min="30" step="5">
       </div>
-      <div class="field" id="depthField">
-        <label>Profundidade — cm</label>
-        <input type="number" id="inD" value="150" min="30" step="5">
-      </div>
-      <div class="field">
+      <div class="field" id="heightField">
         <label>Altura — cm</label>
         <input type="number" id="inH" value="300" min="30" step="5">
       </div>
+
       <div class="field" id="legWField" style="display:none;">
-        <label>Largura da coluna — cm</label>
+        <label>Largura Coluna (Frontal) — cm</label>
         <input type="number" id="inLegW" value="60" min="20" step="5">
       </div>
+      <div class="field" id="legHField" style="display:none;">
+        <label>Altura Coluna (Frontal) — cm</label>
+        <input type="number" id="inLegH" value="240" min="20" step="5">
+      </div>
+      <div class="field" id="headerWField" style="display:none;">
+        <label>Largura Testeira (Frontal) — cm</label>
+        <input type="number" id="inHeaderW" value="150" min="20" step="5">
+      </div>
       <div class="field" id="headerHField" style="display:none;">
-        <label>Altura da testeira — cm</label>
+        <label>Altura Testeira (Frontal) — cm</label>
         <input type="number" id="inHeaderH" value="60" min="20" step="5">
+      </div>
+
+      <div class="field" id="depthField">
+        <label id="depthLabel">Profundidade — cm</label>
+        <input type="number" id="inD" value="150" min="30" step="5">
       </div>
 
       <button type="button" class="piecesToggle" id="piecesToggle">
@@ -990,11 +1000,10 @@ canvas.dragging{ cursor:grabbing; }
   // coluna/testeira (ainda não confirmado com o Jorge se ali deve virar
   // 1 cubo físico só ou 2 empilhados; por ora conta como 2, ver
   // PROXIMAS-VERSOES.md).
-  function computePortico(w, d, hTotal, legW, headerH){
-    const legH = hTotal - headerH;
+  function computePortico(headerW, d, legH, legW, headerH){
     const leg1 = computeTower(legW, d, legH);
     const leg2 = computeTower(legW, d, legH);
-    const header = computeTower(w, d, headerH);
+    const header = computeTower(headerW, d, headerH);
 
     const bom={};
     mergeInto(bom, leg1.bom, 1);
@@ -1007,15 +1016,12 @@ canvas.dragging{ cursor:grabbing; }
     leg2.warnings.forEach(w2=>warnings.push('Coluna direita — '+w2));
     header.warnings.forEach(w2=>warnings.push('Testeira — '+w2));
 
-    const centralSpan = w - 2*legW;
+    const centralSpan = headerW - 2*legW;
     if(centralSpan <= 0){
-      warnings.push('A largura das colunas é grande demais para essa largura total — não sobra vão central. Reduza a largura da coluna ou aumente a largura total.');
-    }
-    if(legH <= 0){
-      warnings.push('A altura da testeira é maior ou igual à altura total — não sobra altura para as colunas. Reduza a altura da testeira.');
+      warnings.push('A largura das colunas é grande demais para essa largura de testeira — não sobra vão central. Reduza a largura da coluna ou aumente a largura da testeira.');
     }
 
-    const detail = {leg1, leg2, header, legH, legW, headerH, centralSpan};
+    const detail = {leg1, leg2, header, legH, legW, headerW, headerH, centralSpan};
     return {bom, cubes, detail, warnings};
   }
 
@@ -1034,7 +1040,9 @@ canvas.dragging{ cursor:grabbing; }
   // ============================================================
   let structureType = 'TORRE';
   let W=150, D=150, H=300;
-  let LEGW=60, HEADERH=60; // só usados quando structureType === 'PORTICO'
+  // só usados quando structureType === 'PORTICO' — W e H nesse modo são
+  // derivados (W = HEADERW, H = LEGH + HEADERH), não digitados direto.
+  let LEGW=60, LEGH=240, HEADERW=150, HEADERH=60;
   let lastResult = null;
 
   const sceneFaces=[];
@@ -1134,7 +1142,7 @@ canvas.dragging{ cursor:grabbing; }
     sceneFaces.length=0; sceneLines.length=0; usedSizes.clear();
 
     const result = structureType==='BACKDROP' ? computeBackdrop(W,H)
-                 : structureType==='PORTICO' ? computePortico(W,D,H,LEGW,HEADERH)
+                 : structureType==='PORTICO' ? computePortico(HEADERW,D,LEGH,LEGW,HEADERH)
                  : computeTower(W,D,H);
     lastResult = result;
     const detail = result.detail;
@@ -1443,9 +1451,12 @@ canvas.dragging{ cursor:grabbing; }
   // Painel: formulário, BOM, avisos, export
   // ============================================================
   const inW=document.getElementById('inW'), inD=document.getElementById('inD'), inH=document.getElementById('inH');
-  const inLegW=document.getElementById('inLegW'), inHeaderH=document.getElementById('inHeaderH');
-  const depthField=document.getElementById('depthField');
-  const legWField=document.getElementById('legWField'), headerHField=document.getElementById('headerHField');
+  const inLegW=document.getElementById('inLegW'), inLegH=document.getElementById('inLegH');
+  const inHeaderW=document.getElementById('inHeaderW'), inHeaderH=document.getElementById('inHeaderH');
+  const depthField=document.getElementById('depthField'), depthLabel=document.getElementById('depthLabel');
+  const widthField=document.getElementById('widthField'), heightField=document.getElementById('heightField');
+  const legWField=document.getElementById('legWField'), legHField=document.getElementById('legHField');
+  const headerWField=document.getElementById('headerWField'), headerHField=document.getElementById('headerHField');
   const headerSub=document.getElementById('headerSub');
   const bomTable=document.getElementById('bomTable');
   const warnArea=document.getElementById('warnArea');
@@ -1455,9 +1466,15 @@ canvas.dragging{ cursor:grabbing; }
     document.querySelectorAll('#typeSeg button').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
     structureType = btn.dataset.type;
+    const isPortico = structureType==='PORTICO';
     depthField.style.display = structureType==='BACKDROP' ? 'none' : 'flex';
-    legWField.style.display = structureType==='PORTICO' ? 'flex' : 'none';
-    headerHField.style.display = structureType==='PORTICO' ? 'flex' : 'none';
+    depthLabel.textContent = isPortico ? 'Profundidade (Geral) — cm' : 'Profundidade — cm';
+    widthField.style.display = isPortico ? 'none' : 'flex';
+    heightField.style.display = isPortico ? 'none' : 'flex';
+    legWField.style.display = isPortico ? 'flex' : 'none';
+    legHField.style.display = isPortico ? 'flex' : 'none';
+    headerWField.style.display = isPortico ? 'flex' : 'none';
+    headerHField.style.display = isPortico ? 'flex' : 'none';
     regenerate();
   }
 
@@ -1486,12 +1503,17 @@ canvas.dragging{ cursor:grabbing; }
   });
 
   function readInputs(){
-    W = Math.max(30, parseFloat(inW.value)||150);
     D = structureType==='BACKDROP' ? 0 : Math.max(30, parseFloat(inD.value)||150);
-    H = Math.max(30, parseFloat(inH.value)||300);
     if(structureType==='PORTICO'){
       LEGW = Math.max(20, parseFloat(inLegW.value)||60);
+      LEGH = Math.max(20, parseFloat(inLegH.value)||240);
+      HEADERW = Math.max(20, parseFloat(inHeaderW.value)||150);
       HEADERH = Math.max(20, parseFloat(inHeaderH.value)||60);
+      W = HEADERW;
+      H = LEGH + HEADERH;
+    } else {
+      W = Math.max(30, parseFloat(inW.value)||150);
+      H = Math.max(30, parseFloat(inH.value)||300);
     }
   }
 
@@ -1576,7 +1598,7 @@ canvas.dragging{ cursor:grabbing; }
   scrollHintEl.addEventListener('click', ()=>{
     sidebarEl.scrollBy({top: sidebarEl.clientHeight*0.75, behavior:'smooth'});
   });
-  [inW,inD,inH,inLegW,inHeaderH].forEach(inp=>{
+  [inW,inD,inH,inLegW,inLegH,inHeaderW,inHeaderH].forEach(inp=>{
     inp.addEventListener('keydown', e=>{ if(e.key==='Enter') regenerate(); });
   });
 
@@ -1642,6 +1664,8 @@ canvas.dragging{ cursor:grabbing; }
     };
     if(structureType==='PORTICO'){
       data.leg_width_cm = LEGW;
+      data.leg_height_cm = LEGH;
+      data.header_width_cm = HEADERW;
       data.header_height_cm = HEADERH;
     }
     downloadBlob('box_truss_export.json', JSON.stringify(data, null, 2), 'application/json');
