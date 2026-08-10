@@ -681,10 +681,17 @@ canvas.dragging{ cursor:grabbing; }
 
   <div class="main">
     <div class="sidebar">
+      <div class="section-title">Módulo</div>
+      <div class="seg" id="moduleSeg">
+        <button data-module="Q15" class="active">Q15</button>
+        <button data-module="Q30">Q30</button>
+      </div>
+
       <div class="section-title">Tipo de estrutura</div>
       <div class="seg" id="typeSeg">
         <button data-type="TORRE" class="active">Torre / Caixa</button>
         <button data-type="BACKDROP">Backdrop</button>
+        <button data-type="PORTICO">Pórtico</button>
       </div>
 
       <div class="field">
@@ -698,6 +705,14 @@ canvas.dragging{ cursor:grabbing; }
       <div class="field">
         <label>Altura — cm</label>
         <input type="number" id="inH" value="300" min="30" step="5">
+      </div>
+      <div class="field" id="legWField" style="display:none;">
+        <label>Largura da coluna — cm</label>
+        <input type="number" id="inLegW" value="60" min="20" step="5">
+      </div>
+      <div class="field" id="headerHField" style="display:none;">
+        <label>Altura da testeira — cm</label>
+        <input type="number" id="inHeaderH" value="60" min="20" step="5">
       </div>
 
       <button type="button" class="piecesToggle" id="piecesToggle">
@@ -795,8 +810,26 @@ canvas.dragging{ cursor:grabbing; }
     return ALL_PIECES.slice();
   }
 
-  const CUBE = 15; // cm
-  const ROD = 1.8; // cm, espessura visual dos perfis nos desenhos
+  // Módulo Q15/Q30 — troca o tamanho do cubo de ligação (e, junto, a
+  // espessura visual dos perfis, na mesma proporção do Q15 original).
+  const MODULE_STORAGE_KEY = 'trellisj_module';
+  const ROD_RATIO = 1.8/15;
+  let CUBE = 15; // cm
+  let ROD = CUBE*ROD_RATIO; // cm, espessura visual dos perfis nos desenhos
+
+  function loadModule(){
+    try{
+      const raw = localStorage.getItem(MODULE_STORAGE_KEY);
+      if(raw === 'Q15' || raw === 'Q30') return raw;
+    }catch(e){}
+    return 'Q15';
+  }
+  function applyModule(mod){
+    CUBE = mod === 'Q30' ? 30 : 15;
+    ROD = CUBE*ROD_RATIO;
+  }
+  let currentModule = loadModule();
+  applyModule(currentModule);
 
   function decomposeSpan(targetCm, pieces, searchMargin){
     pieces = pieces || PIECES;
@@ -950,6 +983,42 @@ canvas.dragging{ cursor:grabbing; }
     return {bom, cubes, detail, warnings};
   }
 
+  // Pórtico: 2 colunas laterais de sustentação (caixas) + 1 testeira
+  // (viga horizontal, também uma caixa) apoiada em cima das duas.
+  // Cada peça é calculada como uma caixa independente (mesma lógica do
+  // computeTower) e depois somadas — sem deduplicar cubos no encontro
+  // coluna/testeira (ainda não confirmado com o Jorge se ali deve virar
+  // 1 cubo físico só ou 2 empilhados; por ora conta como 2, ver
+  // PROXIMAS-VERSOES.md).
+  function computePortico(w, d, hTotal, legW, headerH){
+    const legH = hTotal - headerH;
+    const leg1 = computeTower(legW, d, legH);
+    const leg2 = computeTower(legW, d, legH);
+    const header = computeTower(w, d, headerH);
+
+    const bom={};
+    mergeInto(bom, leg1.bom, 1);
+    mergeInto(bom, leg2.bom, 1);
+    mergeInto(bom, header.bom, 1);
+    const cubes = leg1.cubes + leg2.cubes + header.cubes;
+
+    const warnings=[];
+    leg1.warnings.forEach(w2=>warnings.push('Coluna esquerda — '+w2));
+    leg2.warnings.forEach(w2=>warnings.push('Coluna direita — '+w2));
+    header.warnings.forEach(w2=>warnings.push('Testeira — '+w2));
+
+    const centralSpan = w - 2*legW;
+    if(centralSpan <= 0){
+      warnings.push('A largura das colunas é grande demais para essa largura total — não sobra vão central. Reduza a largura da coluna ou aumente a largura total.');
+    }
+    if(legH <= 0){
+      warnings.push('A altura da testeira é maior ou igual à altura total — não sobra altura para as colunas. Reduza a altura da testeira.');
+    }
+
+    const detail = {leg1, leg2, header, legH, legW, headerH, centralSpan};
+    return {bom, cubes, detail, warnings};
+  }
+
   // ============================================================
   // Paleta (mesmas cores do add-on Blender, para consistência)
   // ============================================================
@@ -965,6 +1034,7 @@ canvas.dragging{ cursor:grabbing; }
   // ============================================================
   let structureType = 'TORRE';
   let W=150, D=150, H=300;
+  let LEGW=60, HEADERH=60; // só usados quando structureType === 'PORTICO'
   let lastResult = null;
 
   const sceneFaces=[];
@@ -1032,10 +1102,40 @@ canvas.dragging{ cursor:grabbing; }
 
   let CENTER=[75,150,75];
 
+  // Desenha uma caixa completa (8 cubos de canto + arestas) deslocada por
+  // (ox,oy,oz) — usado pelo Pórtico pra desenhar cada perna/testeira como
+  // uma caixa independente na posição certa. Mesma lógica do ramo TORRE
+  // de buildScene, só que parametrizada.
+  function addBoxGeometry(ox, oy, oz, w, d, h, detail){
+    const x1=ox+w-CUBE, y1=oy+h-CUBE, z1=oz+d-CUBE;
+    for(const x0 of [ox,x1]) for(const y0 of [oy,y1]) for(const z0 of [oz,z1]) addCube(x0,y0,z0);
+
+    const dH=detail.height;
+    for(const x0 of [ox,x1]) for(const z0 of [oz,z1]) addTrussRun('y', oy+CUBE, x0, z0, dH.pieces, dH.total);
+
+    const dD=detail.depth;
+    for(const x0 of [ox,x1]) for(const y0 of [oy,y1]) addTrussRun('z', oz+CUBE, x0, y0, dD.pieces, dD.total);
+
+    for(const y0 of [oy,y1]) for(const z0 of [oz,z1]){
+      let cursor = ox+CUBE;
+      detail.widthSegments.forEach(seg=>{
+        addTrussRun('x', cursor, y0, z0, seg.pieces, seg.total);
+        cursor += seg.total + CUBE;
+      });
+    }
+    detail.widthSplitX0.forEach(xiLocal=>{
+      const xi = ox+xiLocal;
+      for(const y0 of [oy,y1]) for(const z0 of [oz,z1]) addCube(xi,y0,z0);
+      for(const z0 of [oz,z1]) addTrussRun('y', oy+CUBE, xi, z0, dH.pieces, dH.total);
+    });
+  }
+
   function buildScene(){
     sceneFaces.length=0; sceneLines.length=0; usedSizes.clear();
 
-    const result = structureType==='BACKDROP' ? computeBackdrop(W,H) : computeTower(W,D,H);
+    const result = structureType==='BACKDROP' ? computeBackdrop(W,H)
+                 : structureType==='PORTICO' ? computePortico(W,D,H,LEGW,HEADERH)
+                 : computeTower(W,D,H);
     lastResult = result;
     const detail = result.detail;
 
@@ -1062,6 +1162,13 @@ canvas.dragging{ cursor:grabbing; }
         for(const y0 of [0,y1]) for(const z0 of [0,z1]) addCube(xi,y0,z0);
         for(const z0 of [0,z1]) addTrussRun('y', CUBE, xi, z0, dH.pieces, dH.total);
       });
+
+      CENTER=[W/2,H/2,D/2];
+    } else if(structureType==='PORTICO'){
+      const d2 = detail;
+      addBoxGeometry(0, 0, 0, d2.legW, D, d2.legH, d2.leg1.detail);
+      addBoxGeometry(W-d2.legW, 0, 0, d2.legW, D, d2.legH, d2.leg2.detail);
+      addBoxGeometry(0, d2.legH, 0, W, D, d2.headerH, d2.header.detail);
 
       CENTER=[W/2,H/2,D/2];
     } else {
@@ -1336,7 +1443,9 @@ canvas.dragging{ cursor:grabbing; }
   // Painel: formulário, BOM, avisos, export
   // ============================================================
   const inW=document.getElementById('inW'), inD=document.getElementById('inD'), inH=document.getElementById('inH');
+  const inLegW=document.getElementById('inLegW'), inHeaderH=document.getElementById('inHeaderH');
   const depthField=document.getElementById('depthField');
+  const legWField=document.getElementById('legWField'), headerHField=document.getElementById('headerHField');
   const headerSub=document.getElementById('headerSub');
   const bomTable=document.getElementById('bomTable');
   const warnArea=document.getElementById('warnArea');
@@ -1347,8 +1456,25 @@ canvas.dragging{ cursor:grabbing; }
     btn.classList.add('active');
     structureType = btn.dataset.type;
     depthField.style.display = structureType==='BACKDROP' ? 'none' : 'flex';
+    legWField.style.display = structureType==='PORTICO' ? 'flex' : 'none';
+    headerHField.style.display = structureType==='PORTICO' ? 'flex' : 'none';
     regenerate();
   }
+
+  function selectModule(btn){
+    document.querySelectorAll('#moduleSeg button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    currentModule = btn.dataset.module;
+    applyModule(currentModule);
+    try{ localStorage.setItem(MODULE_STORAGE_KEY, currentModule); }catch(e){}
+    regenerate();
+  }
+  document.querySelectorAll('#moduleSeg button').forEach(btn=>{
+    if(btn.dataset.module === currentModule) btn.classList.add('active');
+    else btn.classList.remove('active');
+    btn.addEventListener('pointerdown', ()=>selectModule(btn));
+    btn.addEventListener('click', ()=>selectModule(btn));
+  });
   // Ligado tanto a pointerdown quanto a click: alguns navegadores com tradução
   // automática ativa engolem o primeiro "click" da página; pointerdown dispara
   // mais cedo no ciclo do evento e costuma escapar dessa interferência.
@@ -1363,12 +1489,18 @@ canvas.dragging{ cursor:grabbing; }
     W = Math.max(30, parseFloat(inW.value)||150);
     D = structureType==='BACKDROP' ? 0 : Math.max(30, parseFloat(inD.value)||150);
     H = Math.max(30, parseFloat(inH.value)||300);
+    if(structureType==='PORTICO'){
+      LEGW = Math.max(20, parseFloat(inLegW.value)||60);
+      HEADERH = Math.max(20, parseFloat(inHeaderH.value)||60);
+    }
   }
 
   function regenerate(){
     readInputs();
     buildScene();
-    const dims = structureType==='BACKDROP' ? (W+' × '+H+' cm (backdrop)') : (W+' × '+D+' × '+H+' cm');
+    const dims = structureType==='BACKDROP' ? (W+' × '+H+' cm (backdrop)')
+               : structureType==='PORTICO' ? (W+' × '+D+' × '+H+' cm (pórtico)')
+               : (W+' × '+D+' × '+H+' cm');
     headerSub.textContent = dims + ' · arraste para girar';
     requestAnimationFrame(updateScrollHint);
   }
@@ -1444,7 +1576,7 @@ canvas.dragging{ cursor:grabbing; }
   scrollHintEl.addEventListener('click', ()=>{
     sidebarEl.scrollBy({top: sidebarEl.clientHeight*0.75, behavior:'smooth'});
   });
-  [inW,inD,inH].forEach(inp=>{
+  [inW,inD,inH,inLegW,inHeaderH].forEach(inp=>{
     inp.addEventListener('keydown', e=>{ if(e.key==='Enter') regenerate(); });
   });
 
@@ -1502,10 +1634,16 @@ canvas.dragging{ cursor:grabbing; }
   document.getElementById('btnJson').addEventListener('click', ()=>{
     const data = {
       type: structureType,
+      module: currentModule,
+      cube_cm: CUBE,
       width_cm: W,
       depth_cm: structureType==='BACKDROP' ? null : D,
       height_cm: H,
     };
+    if(structureType==='PORTICO'){
+      data.leg_width_cm = LEGW;
+      data.header_height_cm = HEADERH;
+    }
     downloadBlob('box_truss_export.json', JSON.stringify(data, null, 2), 'application/json');
   });
 
