@@ -377,6 +377,7 @@ canvas.dragging{ cursor:grabbing; }
   font-family:var(--font-display); font-size:11px; text-transform:uppercase; letter-spacing:.03em;
   color:var(--ink-soft); margin-bottom:6px;
 }
+.budgetThumb{ display:block; width:100%; height:96px; border-radius:4px; margin-bottom:8px; background:var(--studio-2); }
 .budgetLineFieldsGrid{ display:grid; grid-template-columns:1fr 1fr; gap:6px 8px; min-width:0; }
 .budgetQtyField{ grid-column:1 / -1; }
 .budgetQtyField input{ font-weight:700; }
@@ -1993,6 +1994,112 @@ canvas.dragging{ cursor:grabbing; }
   }
   btnAddBudgetLine.addEventListener('click', ()=> addBudgetLine(addBudgetType.value));
 
+  // Gera faces/linhas 3D de UMA peça (tipo+medidas), sem mexer na cena
+  // principal — usa as mesmas funções de geometria (addBoxGeometry etc.),
+  // só que "sequestrando" os arrays globais sceneFaces/sceneLines por um
+  // instante síncrono (nada mais roda no meio, JS é single-thread) e
+  // devolvendo tudo como estava logo em seguida.
+  function computePieceThumbGeometry(p){
+    const savedFaces = sceneFaces.slice(), savedLines = sceneLines.slice();
+    sceneFaces.length = 0; sceneLines.length = 0;
+    const r = computePieceResult(p);
+    let center;
+    if(p.type==='TORRE'){
+      addBoxGeometry(0,0,0, p.dims.w, p.dims.d, p.dims.h, r.detail);
+      center = [p.dims.w/2, p.dims.h/2, p.dims.d/2];
+    } else if(p.type==='BACKDROP'){
+      addBackdropGeometry(0,0,0, p.dims.w, p.dims.h, r.detail);
+      center = [p.dims.w/2, p.dims.h/2, CUBE/2];
+    } else {
+      const rd = r.detail;
+      addBoxGeometry(0, 0, 0, rd.legW, p.dims.d, rd.legH, rd.leg1.detail);
+      addBoxGeometry(p.dims.headerW-rd.legW, 0, 0, rd.legW, p.dims.d, rd.legH, rd.leg2.detail);
+      addBoxGeometry(0, rd.legH, 0, p.dims.headerW, p.dims.d, rd.headerH, rd.header.detail);
+      center = [p.dims.headerW/2, (rd.legH+rd.headerH)/2, p.dims.d/2];
+    }
+    const faces = sceneFaces.slice(), lines = sceneLines.slice();
+    sceneFaces.length = 0; sceneFaces.push(...savedFaces);
+    sceneLines.length = 0; sceneLines.push(...savedLines);
+    return {faces, lines, center};
+  }
+
+  // Desenha uma miniatura estática (ângulo isométrico fixo, sem
+  // interação) num canvas próprio — não toca em ctx/canvas/cam/fitScale
+  // do canvas principal, só empresta CENTER por um instante (síncrono).
+  function renderThumbnailToCanvas(canvasEl, faces, lines, center){
+    const rect = canvasEl.getBoundingClientRect();
+    const w = rect.width||140, h = rect.height||96;
+    if(w<=0 || h<=0) return;
+    const dpr = window.devicePixelRatio||1;
+    canvasEl.width = Math.round(w*dpr);
+    canvasEl.height = Math.round(h*dpr);
+    const tctx = canvasEl.getContext('2d');
+    tctx.setTransform(dpr,0,0,dpr,0,0);
+
+    const dark = isDark();
+    const pal = themePalette(dark);
+    const g = tctx.createLinearGradient(0,0,0,h);
+    g.addColorStop(0, 'rgb('+pal.bg2.join(',')+')');
+    g.addColorStop(1, 'rgb('+pal.bg1.join(',')+')');
+    tctx.fillStyle = g;
+    tctx.fillRect(0,0,w,h);
+
+    const theta = 35*Math.PI/180, phi = 22*Math.PI/180;
+    const savedCenter = CENTER;
+    CENTER = center;
+
+    const halfDiag = Math.hypot(center[0],center[1],center[2]) || 100;
+    const fit = (Math.min(w,h)*0.36) / (halfDiag*(FOCAL_PX/CAM_DIST));
+
+    function proj(p3){
+      const [x2,y2,z2] = rotatePoint(p3, theta, phi, true);
+      const zc = z2+CAM_DIST;
+      const s = (FOCAL_PX/zc)*fit;
+      return {sx: w/2 + x2*s, sy: h*0.58 - y2*s, z_cam:zc};
+    }
+
+    const drawList = [];
+    for(const f of faces){
+      const nCam = rotatePoint(f.normal, theta, phi, false);
+      if(nCam[2] > -0.02) continue;
+      const pts = f.verts.map(proj);
+      let z=0; for(const pt of pts) z+=pt.z_cam; z/=pts.length;
+      const b = 0.42+0.58*Math.max(0, -(nCam[0]*LIGHT[0]+nCam[1]*LIGHT[1]+nCam[2]*LIGHT[2]));
+      drawList.push({type:'face', pts, z, color: shade(colorFor(f.mat,pal), b)});
+    }
+    for(const ln of lines){
+      if(ln.mat==='grid') continue;
+      const p1=proj(ln.p1), p2=proj(ln.p2);
+      drawList.push({type:'line', p1, p2, z:(p1.z_cam+p2.z_cam)/2, color:'rgba('+colorFor(ln.mat,pal).join(',')+',0.55)', width:1});
+    }
+    drawList.sort((a,b)=>b.z-a.z);
+    for(const it of drawList){
+      if(it.type==='face'){
+        tctx.beginPath();
+        tctx.moveTo(it.pts[0].sx, it.pts[0].sy);
+        for(let i=1;i<it.pts.length;i++) tctx.lineTo(it.pts[i].sx, it.pts[i].sy);
+        tctx.closePath();
+        tctx.fillStyle = it.color;
+        tctx.fill();
+      } else {
+        tctx.beginPath();
+        tctx.moveTo(it.p1.sx, it.p1.sy);
+        tctx.lineTo(it.p2.sx, it.p2.sy);
+        tctx.strokeStyle = it.color;
+        tctx.lineWidth = it.width;
+        tctx.stroke();
+      }
+    }
+    CENTER = savedCenter;
+  }
+
+  function drawBudgetLineThumb(l){
+    const canvasEl = document.getElementById('budgetThumb-'+l.id);
+    if(!canvasEl) return;
+    const geo = computePieceThumbGeometry(l);
+    renderThumbnailToCanvas(canvasEl, geo.faces, geo.lines, geo.center);
+  }
+
   function renderBudgetLinesList(){
     if(!budgetLines.length){
       budgetLinesList.innerHTML = '<div class="piecesEmpty">Nenhuma linha ainda — escolha o tipo acima e clique em "+ Adicionar".</div>';
@@ -2007,12 +2114,14 @@ canvas.dragging{ cursor:grabbing; }
       return '<div class="budgetLineCard" data-budget-card="'+l.id+'">'
         + '<div class="budgetLineHead"><span>Linha '+(i+1)+' — '+PIECE_TYPE_LABELS[l.type]+'</span>'
         + '<button type="button" class="pieceRemove" data-remove-budget="'+l.id+'" title="Remover">×</button></div>'
+        + '<canvas class="budgetThumb" id="budgetThumb-'+l.id+'"></canvas>'
         + '<div class="budgetLineFieldsGrid">'+fields
         + '<label class="pieceField budgetQtyField"><span>Quantidade (unidades)</span><input type="number" data-budget="'+l.id+'" data-field="_qty" value="'+l.qty+'" min="1" step="1"></label>'
         + '</div>'
         + '<div class="budgetLineSubtotal" id="budgetLineSubtotal-'+l.id+'">1 un.: '+perUnit+' peças/cubos · '+l.qty+' un.: '+(perUnit*l.qty)+' peças/cubos</div>'
         + '</div>';
     }).join('');
+    budgetLines.forEach(drawBudgetLineThumb);
   }
 
   // Atualiza só o texto do subtotal de UMA linha, sem recriar o card
@@ -2023,6 +2132,7 @@ canvas.dragging{ cursor:grabbing; }
     const r = computePieceResult(l);
     const perUnit = Object.values(r.bom).reduce((a,b)=>a+b,0) + (r.cubes||0);
     el.textContent = '1 un.: '+perUnit+' peças/cubos · '+l.qty+' un.: '+(perUnit*l.qty)+' peças/cubos';
+    drawBudgetLineThumb(l);
   }
 
   budgetLinesList.addEventListener('click', e=>{
