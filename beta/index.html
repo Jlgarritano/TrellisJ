@@ -366,6 +366,22 @@ canvas.dragging{ cursor:grabbing; }
 #floorplanCanvas{ display:block; width:100%; height:100%; touch-action:none; cursor:grab; }
 #floorplanCanvas.dragging{ cursor:grabbing; }
 
+/* Orçamento de evento — várias linhas (tipo + medidas + quantidade),
+   soma tudo num total geral. Sem posição/planta, sem desenho 3D. */
+.budgetMain{ flex:1; min-height:0; display:flex; align-items:flex-start; justify-content:center; overflow-y:auto; padding:32px 24px; }
+.budgetMainInner{ width:100%; max-width:520px; }
+.budgetMainInner .bom{ font-size:14px; }
+.budgetLineCard{ border:1px solid var(--panel-border); border-radius:6px; padding:8px 10px; margin-top:8px; }
+.budgetLineHead{
+  display:flex; align-items:center; justify-content:space-between;
+  font-family:var(--font-display); font-size:11px; text-transform:uppercase; letter-spacing:.03em;
+  color:var(--ink-soft); margin-bottom:6px;
+}
+.budgetLineFieldsGrid{ display:grid; grid-template-columns:1fr 1fr; gap:6px 8px; min-width:0; }
+.budgetQtyField{ grid-column:1 / -1; }
+.budgetQtyField input{ font-weight:700; }
+.budgetLineSubtotal{ font-size:10.5px; color:var(--ink-faint); margin-top:6px; font-family:var(--font-mono); }
+
 /* Relatório para exportação em PDF (via impressão do navegador) — fica
    fora da tela normalmente, só aparece formatado quando @media print
    ativa. Evita depender de biblioteca externa de PDF. */
@@ -723,12 +739,33 @@ canvas.dragging{ cursor:grabbing; }
 
   <div class="main">
     <div class="sidebar">
+      <div class="section-title">Modo</div>
+      <div class="seg" id="appModeSeg">
+        <button data-mode="calc" class="active">Calculadora</button>
+        <button data-mode="budget">Orçamento de Evento</button>
+      </div>
+
       <div class="section-title">Módulo</div>
       <div class="seg" id="moduleSeg">
         <button data-module="Q15" class="active">Q15</button>
         <button data-module="Q30">Q30</button>
       </div>
 
+      <div id="budgetPanel" style="display:none;">
+        <div class="section-title">Linhas do orçamento</div>
+        <div class="addPieceRow">
+          <select id="addBudgetType">
+            <option value="TORRE">Torre / Caixa</option>
+            <option value="BACKDROP">Backdrop</option>
+            <option value="PORTICO">Pórtico</option>
+          </select>
+          <button type="button" class="btn secondary" id="btnAddBudgetLine">+ Adicionar</button>
+        </div>
+        <div id="budgetLinesList"></div>
+        <div class="piecesHint">Cada linha é uma configuração (tipo + medidas) e a quantidade de vezes que ela se repete no evento. O total geral soma tudo, já multiplicado pela quantidade de cada linha.</div>
+      </div>
+
+      <div id="calcOnly">
       <div class="section-title">Tipo de estrutura</div>
       <div class="seg" id="typeSeg" style="flex-wrap:wrap !important; height:auto !important; min-height:68px !important; overflow:visible !important;">
         <button data-type="TORRE" class="active">Torre / Caixa</button>
@@ -829,18 +866,30 @@ canvas.dragging{ cursor:grabbing; }
       </div>
 
       <button type="button" class="adminLink" id="adminLink" title="Administrador">⚙ admin</button>
+      </div>
 
       <button type="button" class="scrollHint" id="scrollHint" title="Rolar para ver mais" aria-label="Rolar para ver mais">▾</button>
     </div>
 
-    <div class="canvas-wrap">
+    <div class="canvas-wrap" id="canvasWrap">
       <canvas id="c"></canvas>
       <div class="hint" id="hint">arraste para girar · scroll para zoom</div>
       <div class="legend" id="legend"></div>
     </div>
+
+    <div class="budgetMain" id="budgetMain" style="display:none;">
+      <div class="budgetMainInner">
+        <div class="section-title">Total geral do evento</div>
+        <table class="bom" id="budgetTotalTable"></table>
+        <div id="budgetTotalWarn"></div>
+        <div class="btnrow">
+          <button class="btn secondary" id="btnBudgetCsv">Exportar CSV</button>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <div class="dock dock-desktop">
+  <div class="dock dock-desktop" id="dockDesktop">
     <button data-view="front">Frontal</button>
     <button data-view="side">Lateral</button>
     <button data-view="top">Superior</button>
@@ -1156,6 +1205,11 @@ canvas.dragging{ cursor:grabbing; }
   let nextPieceId = 1;
   let selectedPieceId = null;
   let lastResult = null;
+  // só usado no modo "Orçamento de evento".
+  let appMode = 'calc';
+  let budgetLines = [];
+  let nextBudgetLineId = 1;
+  let lastBudgetResult = null;
 
   const sceneFaces=[];
   const sceneLines=[];
@@ -1650,7 +1704,7 @@ canvas.dragging{ cursor:grabbing; }
     currentModule = btn.dataset.module;
     applyModule(currentModule);
     try{ localStorage.setItem(MODULE_STORAGE_KEY, currentModule); }catch(e){}
-    regenerate();
+    refreshCurrentMode();
   }
   document.querySelectorAll('#moduleSeg button').forEach(btn=>{
     if(btn.dataset.module === currentModule) btn.classList.add('active');
@@ -1889,6 +1943,146 @@ canvas.dragging{ cursor:grabbing; }
   new ResizeObserver(()=>{ if(structureType==='PERSONALIZADO'){ fitFloorplan(); renderFloorplan(); } }).observe(floorplanCanvas.parentElement);
 
   // ============================================================
+  // Orçamento de evento — várias "linhas" (tipo + medidas + quantidade),
+  // sem posição/planta — só soma o quantitativo de todas multiplicado
+  // pela quantidade de cada linha. Útil pra eventos com muitas
+  // repetições (ex: 78 stands em 3 medidas diferentes).
+  // ============================================================
+  const calcOnly = document.getElementById('calcOnly');
+  const canvasWrap = document.getElementById('canvasWrap');
+  const dockDesktop = document.getElementById('dockDesktop');
+  const budgetPanel = document.getElementById('budgetPanel');
+  const budgetMain = document.getElementById('budgetMain');
+  const budgetLinesList = document.getElementById('budgetLinesList');
+  const addBudgetType = document.getElementById('addBudgetType');
+  const btnAddBudgetLine = document.getElementById('btnAddBudgetLine');
+  const budgetTotalTable = document.getElementById('budgetTotalTable');
+  const budgetTotalWarn = document.getElementById('budgetTotalWarn');
+  const btnBudgetCsv = document.getElementById('btnBudgetCsv');
+
+  function refreshCurrentMode(){
+    if(appMode==='budget'){ renderBudgetLinesList(); renderBudgetTotal(); }
+    else { regenerate(); }
+  }
+
+  function selectAppMode(mode){
+    appMode = mode;
+    document.querySelectorAll('#appModeSeg button').forEach(b=>b.classList.toggle('active', b.dataset.mode===mode));
+    const isBudget = mode==='budget';
+    calcOnly.style.display = isBudget ? 'none' : 'block';
+    canvasWrap.style.display = isBudget ? 'none' : 'flex';
+    dockDesktop.style.display = isBudget ? 'none' : 'flex';
+    budgetPanel.style.display = isBudget ? 'block' : 'none';
+    budgetMain.style.display = isBudget ? 'flex' : 'none';
+    if(isBudget){ renderBudgetLinesList(); renderBudgetTotal(); }
+  }
+  document.querySelectorAll('#appModeSeg button').forEach(btn=>{
+    btn.addEventListener('pointerdown', ()=>selectAppMode(btn.dataset.mode));
+    btn.addEventListener('click', ()=>selectAppMode(btn.dataset.mode));
+  });
+
+  function addBudgetLine(type){
+    budgetLines.push({id: nextBudgetLineId++, type, dims: defaultPieceDims(type), qty: 1});
+    renderBudgetLinesList();
+    renderBudgetTotal();
+  }
+  function removeBudgetLine(id){
+    budgetLines = budgetLines.filter(l=>l.id!==id);
+    renderBudgetLinesList();
+    renderBudgetTotal();
+  }
+  btnAddBudgetLine.addEventListener('click', ()=> addBudgetLine(addBudgetType.value));
+
+  function renderBudgetLinesList(){
+    if(!budgetLines.length){
+      budgetLinesList.innerHTML = '<div class="piecesEmpty">Nenhuma linha ainda — escolha o tipo acima e clique em "+ Adicionar".</div>';
+      return;
+    }
+    budgetLinesList.innerHTML = budgetLines.map((l,i)=>{
+      const fields = pieceDimsFields(l.type).map(f=>
+        '<label class="pieceField"><span>'+f.label+' — cm</span><input type="number" data-budget="'+l.id+'" data-field="'+f.key+'" value="'+l.dims[f.key]+'" min="20" step="5"></label>'
+      ).join('');
+      const r = computePieceResult(l);
+      const perUnit = Object.values(r.bom).reduce((a,b)=>a+b,0) + (r.cubes||0);
+      return '<div class="budgetLineCard" data-budget-card="'+l.id+'">'
+        + '<div class="budgetLineHead"><span>Linha '+(i+1)+' — '+PIECE_TYPE_LABELS[l.type]+'</span>'
+        + '<button type="button" class="pieceRemove" data-remove-budget="'+l.id+'" title="Remover">×</button></div>'
+        + '<div class="budgetLineFieldsGrid">'+fields
+        + '<label class="pieceField budgetQtyField"><span>Quantidade (unidades)</span><input type="number" data-budget="'+l.id+'" data-field="_qty" value="'+l.qty+'" min="1" step="1"></label>'
+        + '</div>'
+        + '<div class="budgetLineSubtotal">1 un.: '+perUnit+' peças/cubos · '+l.qty+' un.: '+(perUnit*l.qty)+' peças/cubos</div>'
+        + '</div>';
+    }).join('');
+  }
+
+  budgetLinesList.addEventListener('click', e=>{
+    const rm = e.target.closest('[data-remove-budget]');
+    if(rm) removeBudgetLine(Number(rm.dataset.removeBudget));
+  });
+  budgetLinesList.addEventListener('input', e=>{
+    const t = e.target;
+    if(!t.dataset.budget) return;
+    const l = budgetLines.find(ll=>ll.id===Number(t.dataset.budget));
+    if(!l) return;
+    const val = Math.max(1, parseFloat(t.value)||1);
+    if(t.dataset.field==='_qty') l.qty = Math.round(val);
+    else l.dims[t.dataset.field] = val;
+    renderBudgetLinesList();
+    renderBudgetTotal();
+  });
+
+  function computeBudgetTotal(){
+    const bom={}; let cubes=0; const warnings=[];
+    budgetLines.forEach((l,i)=>{
+      const r = computePieceResult(l);
+      const qty = Math.max(1, l.qty||1);
+      mergeInto(bom, r.bom, qty);
+      cubes += r.cubes*qty;
+      const label = 'Linha '+(i+1)+' ('+PIECE_TYPE_LABELS[l.type]+', x'+qty+')';
+      r.warnings.forEach(w2=>warnings.push(label+' — '+w2));
+    });
+    if(!budgetLines.length) warnings.push('Nenhuma linha adicionada ainda.');
+    return {bom, cubes, warnings};
+  }
+
+  function renderBudgetTotal(){
+    const result = computeBudgetTotal();
+    lastBudgetResult = result;
+    let rows = '';
+    if(result.cubes){
+      rows += '<tr><td><span class="sw" style="background:rgb('+PIECE_PALETTE.cube.join(',')+')"></span>Cubo '+CUBE+'cm</td><td class="qty">'+result.cubes+'</td></tr>';
+    }
+    let totalPieces = 0;
+    Object.keys(result.bom).map(Number).sort((a,b)=>b-a).forEach(size=>{
+      const qty = result.bom[size];
+      totalPieces += qty;
+      const c = PIECE_PALETTE[size]||[150,150,150];
+      rows += '<tr><td><span class="sw" style="background:rgb('+c.join(',')+')"></span>Peça '+size+'cm</td><td class="qty">'+qty+'</td></tr>';
+    });
+    rows += '<tr class="total"><td>Total de peças</td><td class="qty">'+totalPieces+'</td></tr>';
+    budgetTotalTable.innerHTML = rows;
+
+    const totalUnits = budgetLines.reduce((a,l)=>a+Math.max(1,l.qty||1), 0);
+    if(result.warnings.length && budgetLines.length){
+      budgetTotalWarn.innerHTML = '<div class="warnbox"><b>Avisos</b>'+result.warnings.map(w=>('&bull; '+w)).join('<br>')+'</div>';
+    } else if(budgetLines.length){
+      budgetTotalWarn.innerHTML = '<div class="okbox">✓ '+budgetLines.length+' linha'+(budgetLines.length===1?'':'s')+' · '+totalUnits+' unidade'+(totalUnits===1?'':'s')+' no total</div>';
+    } else {
+      budgetTotalWarn.innerHTML = '';
+    }
+  }
+
+  btnBudgetCsv.addEventListener('click', ()=>{
+    if(!lastBudgetResult) return;
+    let csv = 'Item,Quantidade\n';
+    if(lastBudgetResult.cubes) csv += 'Cubo de ligação '+CUBE+'cm,'+lastBudgetResult.cubes+'\n';
+    Object.keys(lastBudgetResult.bom).map(Number).sort((a,b)=>b-a).forEach(size=>{
+      csv += 'Peça '+size+'cm,'+lastBudgetResult.bom[size]+'\n';
+    });
+    downloadBlob('quantitativo_orcamento_evento.csv', csv, 'text/csv;charset=utf-8');
+  });
+
+  // ============================================================
   // Peças disponíveis — cada empresa/montador pode ter só um subconjunto
   // do catálogo padrão. O usuário marca/desmarca aqui, isso vira o array
   // PIECES usado por decomposeSpan (todas as chamadas usam o default do
@@ -1936,7 +2130,7 @@ canvas.dragging{ cursor:grabbing; }
     PIECES = Array.from(piecesGrid.querySelectorAll('input:checked')).map(i=>Number(i.value));
     savePieces();
     renderPiecesCount();
-    regenerate();
+    refreshCurrentMode();
   });
 
   // ============================================================
