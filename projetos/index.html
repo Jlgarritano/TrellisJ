@@ -301,6 +301,29 @@ canvas.dragging{ cursor:grabbing; }
   cursor:pointer; padding:2px 0; opacity:.6;
 }
 .adminLink:hover{ opacity:1; color:var(--ink-soft); }
+
+/* Relatório para exportação em PDF (via impressão do navegador) — fica
+   fora da tela normalmente, só aparece formatado quando @media print
+   ativa. Evita depender de biblioteca externa de PDF. */
+#printArea{ display:none; }
+.print-header{ display:flex; justify-content:space-between; align-items:baseline; border-bottom:2px solid #1B2733; padding-bottom:10px; margin-bottom:16px; }
+.print-logo{ font-family:var(--font-display); font-weight:700; font-size:22px; letter-spacing:.02em; }
+.print-sub{ font-family:var(--font-mono); font-size:12px; color:#4C5A67; }
+#printImg{ display:block; width:100%; max-height:420px; object-fit:contain; margin-bottom:18px; background:#0f1218; border-radius:4px; }
+.print-section-title{ font-family:var(--font-display); font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:#4C5A67; margin-bottom:8px; }
+.print-bom{ width:100%; border-collapse:collapse; font-family:var(--font-mono); font-size:13px; margin-bottom:18px; }
+.print-bom td{ padding:6px 8px; border-bottom:1px solid #D9DEE3; }
+.print-bom td:last-child{ text-align:right; font-weight:700; }
+.print-bom tr.total td{ border-top:2px solid #1B2733; border-bottom:none; font-weight:700; padding-top:8px; }
+.print-bom .sw{ display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:6px; }
+.print-footer{ font-family:var(--font-mono); font-size:10px; color:#8592A0; text-align:right; }
+
+@media print{
+  body *{ visibility:hidden; }
+  #printArea, #printArea *{ visibility:visible; }
+  #printArea{ display:block; position:absolute; top:0; left:0; width:100%; padding:24px; }
+  @page{ margin:16mm; }
+}
 </style>
 </head>
 <body>
@@ -351,6 +374,17 @@ canvas.dragging{ cursor:grabbing; }
     </div>
     <div id="adminBody">Carregando…</div>
   </div>
+</div>
+
+<div id="printArea">
+  <div class="print-header">
+    <div class="print-logo">TRELLIS.J</div>
+    <div class="print-sub" id="printSub"></div>
+  </div>
+  <img id="printImg" alt="Desenho da estrutura">
+  <div class="print-section-title">Quantitativo de peças</div>
+  <table class="print-bom" id="printBom"></table>
+  <div class="print-footer">Gerado em <span id="printDate"></span> · trellisj.com.br</div>
 </div>
 
 <script>
@@ -667,6 +701,7 @@ canvas.dragging{ cursor:grabbing; }
       <div id="warnArea"></div>
 
       <div class="btnrow">
+        <button class="btn secondary" id="btnPdf">Exportar PDF</button>
         <button class="btn secondary" id="btnCsv">Exportar CSV</button>
         <button class="btn secondary" id="btnJson">Enviar p/ Blender (JSON)</button>
       </div>
@@ -1375,6 +1410,18 @@ canvas.dragging{ cursor:grabbing; }
       height_cm: H,
     };
     downloadBlob('box_truss_export.json', JSON.stringify(data, null, 2), 'application/json');
+  });
+
+  // Exporta desenho + quantitativo em PDF usando a caixa de impressão do
+  // próprio navegador (sem biblioteca externa): monta um relatório fora da
+  // tela com o snapshot do canvas e o mesmo BOM já calculado, e chama
+  // window.print() — em "Salvar como PDF" o usuário gera o arquivo.
+  document.getElementById('btnPdf').addEventListener('click', ()=>{
+    document.getElementById('printImg').src = canvas.toDataURL('image/png');
+    document.getElementById('printSub').textContent = headerSub.textContent.replace(' · arraste para girar', '');
+    document.getElementById('printBom').innerHTML = bomTable.innerHTML;
+    document.getElementById('printDate').textContent = new Date().toLocaleDateString('pt-BR');
+    window.print();
   });
 
   // ============================================================
