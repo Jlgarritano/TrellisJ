@@ -302,6 +302,28 @@ canvas.dragging{ cursor:grabbing; }
 }
 .adminLink:hover{ opacity:1; color:var(--ink-soft); }
 
+/* Peças disponíveis — lista de tamanhos que o usuário marca/desmarca,
+   pois nem toda empresa/montador tem o catálogo padrão completo. */
+.piecesToggle{
+  display:flex; align-items:center; gap:6px; width:100%;
+  background:transparent; border:1px solid var(--panel-border); border-radius:6px;
+  padding:8px 10px; margin-top:2px; cursor:pointer;
+  font-family:var(--font-display); font-size:11px; text-transform:uppercase; letter-spacing:.03em;
+  color:var(--ink-soft);
+}
+.piecesToggle:hover{ border-color:var(--ink-faint); }
+.piecesToggle .piecesCount{ margin-left:auto; font-family:var(--font-mono); text-transform:none; color:var(--ink-faint); font-size:11px; }
+.piecesToggle.open .piecesCaret{ transform:rotate(180deg); }
+.piecesCaret{ display:inline-block; transition:transform .15s ease; color:var(--ink-faint); }
+.piecesPanel{ border:1px solid var(--panel-border); border-top:none; border-radius:0 0 6px 6px; padding:10px; margin-top:-1px; }
+.piecesGrid{ display:grid; grid-template-columns:1fr 1fr; gap:6px 10px; }
+.piecesGrid label{
+  display:flex; align-items:center; gap:6px; font-family:var(--font-mono); font-size:12.5px;
+  color:var(--ink); cursor:pointer; user-select:none;
+}
+.piecesGrid input[type="checkbox"]{ accent-color:var(--accent); width:14px; height:14px; cursor:pointer; }
+.piecesHint{ font-size:10.5px; color:var(--ink-faint); line-height:1.5; margin-top:8px; }
+
 /* Relatório para exportação em PDF (via impressão do navegador) — fica
    fora da tela normalmente, só aparece formatado quando @media print
    ativa. Evita depender de biblioteca externa de PDF. */
@@ -678,6 +700,16 @@ canvas.dragging{ cursor:grabbing; }
         <input type="number" id="inH" value="300" min="30" step="5">
       </div>
 
+      <button type="button" class="piecesToggle" id="piecesToggle">
+        <span>Peças disponíveis</span>
+        <span class="piecesCount" id="piecesCount"></span>
+        <span class="piecesCaret">▾</span>
+      </button>
+      <div class="piecesPanel" id="piecesPanel" style="display:none;">
+        <div class="piecesGrid" id="piecesGrid"></div>
+        <div class="piecesHint">Desmarque os tamanhos que você não tem disponível. Fica salvo neste navegador.</div>
+      </div>
+
       <button class="btn" id="btnGerar">Gerar Estrutura</button>
 
       <div class="section-title dock-mobile-title">Vista</div>
@@ -748,7 +780,21 @@ canvas.dragging{ cursor:grabbing; }
   // Vão livre de uma aresta = comprimento total do eixo - 2*15cm.
   // ============================================================
 
-  const PIECES = [300,270,250,200,170,150,100,70,50,20]; // cm
+  const ALL_PIECES = [300,270,250,200,170,150,100,70,50,20]; // cm — catálogo padrão Q15
+  const PIECES_STORAGE_KEY = 'trellisj_pieces';
+  let PIECES = loadPieces(); // cm — subconjunto ativo (o que esse usuário/navegador tem disponível)
+
+  function loadPieces(){
+    try{
+      const raw = JSON.parse(localStorage.getItem(PIECES_STORAGE_KEY));
+      if(Array.isArray(raw)){
+        const filtered = raw.filter(n => ALL_PIECES.includes(n));
+        if(filtered.length) return filtered;
+      }
+    }catch(e){}
+    return ALL_PIECES.slice();
+  }
+
   const CUBE = 15; // cm
   const ROD = 1.8; // cm, espessura visual dos perfis nos desenhos
 
@@ -1329,6 +1375,57 @@ canvas.dragging{ cursor:grabbing; }
 
   document.getElementById('btnGerar').addEventListener('pointerdown', regenerate);
   document.getElementById('btnGerar').addEventListener('click', regenerate);
+
+  // ============================================================
+  // Peças disponíveis — cada empresa/montador pode ter só um subconjunto
+  // do catálogo padrão. O usuário marca/desmarca aqui, isso vira o array
+  // PIECES usado por decomposeSpan (todas as chamadas usam o default do
+  // módulo), e fica salvo em localStorage neste navegador.
+  // ============================================================
+  const piecesToggle = document.getElementById('piecesToggle');
+  const piecesPanel = document.getElementById('piecesPanel');
+  const piecesGrid = document.getElementById('piecesGrid');
+  const piecesCount = document.getElementById('piecesCount');
+
+  function savePieces(){
+    try{ localStorage.setItem(PIECES_STORAGE_KEY, JSON.stringify(PIECES)); }catch(e){}
+  }
+
+  function renderPiecesCount(){
+    piecesCount.textContent = '('+PIECES.length+'/'+ALL_PIECES.length+')';
+  }
+
+  function renderPiecesGrid(){
+    piecesGrid.innerHTML = ALL_PIECES.map(size=>{
+      const id = 'piece_'+size;
+      const checked = PIECES.includes(size) ? 'checked' : '';
+      return '<label for="'+id+'"><input type="checkbox" id="'+id+'" value="'+size+'" '+checked+'>'+size+'cm</label>';
+    }).join('');
+    renderPiecesCount();
+  }
+  renderPiecesGrid();
+
+  piecesToggle.addEventListener('click', ()=>{
+    const isOpen = piecesPanel.style.display !== 'none';
+    piecesPanel.style.display = isOpen ? 'none' : 'block';
+    piecesToggle.classList.toggle('open', !isOpen);
+  });
+
+  piecesGrid.addEventListener('change', e=>{
+    const cb = e.target;
+    if(cb.tagName !== 'INPUT') return;
+    const size = Number(cb.value);
+    const stillChecked = piecesGrid.querySelectorAll('input:checked').length;
+    if(!cb.checked && stillChecked === 0){
+      // não deixa desmarcar a última peça — precisa de pelo menos uma.
+      cb.checked = true;
+      return;
+    }
+    PIECES = Array.from(piecesGrid.querySelectorAll('input:checked')).map(i=>Number(i.value));
+    savePieces();
+    renderPiecesCount();
+    regenerate();
+  });
 
   // ============================================================
   // Seta de "tem mais conteúdo aqui embaixo": o painel lateral tem rolagem
