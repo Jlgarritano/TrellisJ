@@ -713,7 +713,7 @@ canvas.dragging{ cursor:grabbing; }
       </div>
       <div class="field" id="headerWField" style="display:none;">
         <label>Largura Testeira (Frontal) — cm</label>
-        <input type="number" id="inHeaderW" value="150" min="20" step="5">
+        <input type="number" id="inHeaderW" value="500" min="20" step="5">
       </div>
       <div class="field" id="headerHField" style="display:none;">
         <label>Altura Testeira (Frontal) — cm</label>
@@ -1507,7 +1507,7 @@ canvas.dragging{ cursor:grabbing; }
     if(structureType==='PORTICO'){
       LEGW = Math.max(20, parseFloat(inLegW.value)||60);
       LEGH = Math.max(20, parseFloat(inLegH.value)||240);
-      HEADERW = Math.max(20, parseFloat(inHeaderW.value)||150);
+      HEADERW = Math.max(20, parseFloat(inHeaderW.value)||500);
       HEADERH = Math.max(20, parseFloat(inHeaderH.value)||60);
       W = HEADERW;
       H = LEGH + HEADERH;
