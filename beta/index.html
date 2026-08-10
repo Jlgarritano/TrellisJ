@@ -1583,7 +1583,7 @@ canvas.dragging{ cursor:grabbing; }
   function updateBomPanel(result){
     let rows = '';
     if(result.cubes){
-      rows += '<tr><td><span class="sw" style="background:rgb('+PIECE_PALETTE.cube.join(',')+')"></span>Cubo 15cm</td><td class="qty">'+result.cubes+'</td></tr>';
+      rows += '<tr><td><span class="sw" style="background:rgb('+PIECE_PALETTE.cube.join(',')+')"></span>Cubo '+CUBE+'cm</td><td class="qty">'+result.cubes+'</td></tr>';
     }
     let totalPieces = 0;
     Object.keys(result.bom).map(Number).sort((a,b)=>b-a).forEach(size=>{
@@ -1604,7 +1604,7 @@ canvas.dragging{ cursor:grabbing; }
 
   function updateLegend(){
     const sizes = Array.from(usedSizes).sort((a,b)=>b-a);
-    let rows = '<div class="row"><span class="sw" style="background:rgb('+PIECE_PALETTE.cube.join(',')+')"></span>Cubo 15cm</div>';
+    let rows = '<div class="row"><span class="sw" style="background:rgb('+PIECE_PALETTE.cube.join(',')+')"></span>Cubo '+CUBE+'cm</div>';
     sizes.forEach(size=>{
       const c = PIECE_PALETTE[size]||[150,150,150];
       rows += '<div class="row"><span class="sw" style="background:rgb('+c.join(',')+')"></span>Peça '+size+'cm</div>';
@@ -1624,7 +1624,7 @@ canvas.dragging{ cursor:grabbing; }
   document.getElementById('btnCsv').addEventListener('click', ()=>{
     if(!lastResult) return;
     let csv = 'Item,Quantidade\n';
-    if(lastResult.cubes) csv += 'Cubo de ligação 15cm,'+lastResult.cubes+'\n';
+    if(lastResult.cubes) csv += 'Cubo de ligação '+CUBE+'cm,'+lastResult.cubes+'\n';
     Object.keys(lastResult.bom).map(Number).sort((a,b)=>b-a).forEach(size=>{
       csv += 'Peça '+size+'cm,'+lastResult.bom[size]+'\n';
     });
