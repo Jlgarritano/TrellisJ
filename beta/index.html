@@ -131,7 +131,7 @@ header .sub{ font-family:var(--font-mono); font-size:11px; color:var(--ink-soft)
 
 /* Tipo de estrutura tem 4 opções — vira grid 2x2 em vez de 4 colunas
    apertadas numa linha só (que cortava o texto de "Personalizado"). */
-#typeSeg{ display:grid !important; grid-template-columns:1fr 1fr !important; }
+#typeSeg{ display:grid !important; grid-template-columns:1fr 1fr !important; height:auto !important; min-height:0 !important; overflow:visible !important; }
 #typeSeg button{ border-bottom:1px solid var(--panel-border) !important; border-right:1px solid var(--panel-border) !important; }
 #typeSeg button:nth-child(2n){ border-right:none !important; }
 #typeSeg button:nth-child(3), #typeSeg button:nth-child(4){ border-bottom:none !important; }
