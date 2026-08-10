@@ -2010,9 +2010,19 @@ canvas.dragging{ cursor:grabbing; }
         + '<div class="budgetLineFieldsGrid">'+fields
         + '<label class="pieceField budgetQtyField"><span>Quantidade (unidades)</span><input type="number" data-budget="'+l.id+'" data-field="_qty" value="'+l.qty+'" min="1" step="1"></label>'
         + '</div>'
-        + '<div class="budgetLineSubtotal">1 un.: '+perUnit+' peças/cubos · '+l.qty+' un.: '+(perUnit*l.qty)+' peças/cubos</div>'
+        + '<div class="budgetLineSubtotal" id="budgetLineSubtotal-'+l.id+'">1 un.: '+perUnit+' peças/cubos · '+l.qty+' un.: '+(perUnit*l.qty)+' peças/cubos</div>'
         + '</div>';
     }).join('');
+  }
+
+  // Atualiza só o texto do subtotal de UMA linha, sem recriar o card
+  // inteiro — recriar destruiria o input em foco a cada tecla digitada.
+  function updateBudgetLineSubtotal(l){
+    const el = document.getElementById('budgetLineSubtotal-'+l.id);
+    if(!el) return;
+    const r = computePieceResult(l);
+    const perUnit = Object.values(r.bom).reduce((a,b)=>a+b,0) + (r.cubes||0);
+    el.textContent = '1 un.: '+perUnit+' peças/cubos · '+l.qty+' un.: '+(perUnit*l.qty)+' peças/cubos';
   }
 
   budgetLinesList.addEventListener('click', e=>{
@@ -2027,7 +2037,7 @@ canvas.dragging{ cursor:grabbing; }
     const val = Math.max(1, parseFloat(t.value)||1);
     if(t.dataset.field==='_qty') l.qty = Math.round(val);
     else l.dims[t.dataset.field] = val;
-    renderBudgetLinesList();
+    updateBudgetLineSubtotal(l);
     renderBudgetTotal();
   });
 
